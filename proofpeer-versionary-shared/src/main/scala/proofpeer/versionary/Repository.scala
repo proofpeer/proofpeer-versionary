@@ -74,5 +74,7 @@ object Repository {
     new RepositoryImpl(storage)
   }
 
+  val default : Repository = apply(Storage())
+
 }
 
