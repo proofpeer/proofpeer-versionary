@@ -11,10 +11,16 @@ object PathGrammar {
   val underscore = char('_')
   val alphanum = alt(letter, digit, underscore)
   val suffix = OPT(seq(string("."), REPEAT1(alphanum)))
+  val id = seq(letter, REPEAT(alphanum), suffix)
 
   val grammar = 
-    rule("Filename", alt(string("."), string(".."), seq(letter, REPEAT(alphanum), suffix))) ++
+    rule("Filename", alt(string("."), string(".."), id)) ++
     rule("PathSeparator", char('\\')) ++
+    rule("Colon", char(':')) ++
+    rule("At", char('@')) ++
+    rule("BranchId", seq(id, REPEAT(seq(char('\\'), id)))) ++
+    rule("Domain", seq(REPEAT1(letter), OPT(seq(char('.'), REPEAT1(letter))))) ++
+    rule("Version", seq(OPT(char('-')), REPEAT1(digit))) ++
     rule("RelativeFilePath", "", c => Vector[String]()) ++
     rule("RelativeFilePath", "Filename", c => Vector[String](c.text("Filename"))) ++
     rule("RelativeFilePath", "Filename PathSeparator RelativeFilePath",
@@ -22,11 +28,25 @@ object PathGrammar {
       c =>  c.text("Filename") +: c.RelativeFilePath[Vector[String]]) ++
     rule("FilePath", "RelativeFilePath", c => FilePath(false, c.RelativeFilePath[Vector[String]])) ++
     rule("FilePath", "PathSeparator RelativeFilePath", Connect("PathSeparator", "RelativeFilePath"), 
-      c => FilePath(true, c.RelativeFilePath[Vector[String]]))
+      c => FilePath(true, c.RelativeFilePath[Vector[String]])) ++
+    rule("Branch", "BranchId", c => BranchSpec(c.text("BranchId"), None, None)) ++
+    rule("Branch", "BranchId Colon Version",
+      connect("BranchId", "Colon", "Version"),
+      c => BranchSpec(c.text("BranchId"), Some(c.text("Version").toInt), None)) ++
+    rule("BranchSpec", "Branch", c => c.Branch[Any]) ++
+    rule("BranchSpec", "Branch At Domain",
+      connect("Branch", "At", "Domain"),
+      c => c.Branch[BranchSpec].setDomain(c.text("Domain"))) ++ 
+    rule("Path", "FilePath", c => Path(None, c.FilePath)) ++
+    rule("Path", "FilePath At BranchSpec", 
+      connect("FilePath", "At", "BranchSpec"),
+      c => Path(Some(c.BranchSpec), c.FilePath))
 
   val parser = Parser(grammar)
 
-  def parseFilePath(path : String) : Option[FilePath] = parser.parse("FilePath", path)
+  def parseFilePath(filepath : String) : Option[FilePath] = parser.parse("FilePath", filepath)
+  def parseBranchSpec(branchspec : String) : Option[BranchSpec] = parser.parse("BranchSpec", branchspec)
+  def parsePath(path : String) : Option[Path] = parser.parse("Path", path)
 
 }
 
@@ -71,8 +91,7 @@ object FilePath {
 
   def apply(path : String) : FilePath = {
     PathGrammar.parseFilePath(path) match {
-      case None =>
-        throw new RuntimeException("invalid file path: " + path)
+      case None => throw new RuntimeException("invalid file path: " + path)
       case Some(fp) => fp
     }
   }
@@ -97,3 +116,17 @@ object FilePathOrdering extends Ordering[FilePath] {
   }
 }
 
+case class BranchSpec(name : String, version : Option[Int], domain : Option[String]) {
+  def setDomain(d : String) : BranchSpec = BranchSpec(name, version, Some(d))
+}
+
+case class Path(branch : Option[BranchSpec], path : FilePath)
+
+object Path {
+  def apply(path : String) : Path = {
+    PathGrammar.parsePath(path) match {
+      case None => throw new RuntimeException("invalid path: " + path)
+      case Some(p) => p
+    }
+  }
+}
