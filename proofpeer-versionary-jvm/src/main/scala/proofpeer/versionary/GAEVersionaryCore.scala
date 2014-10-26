@@ -36,7 +36,7 @@ class GAEVersionaryCore(val repository : Repository, branchKind : String, versio
         val isEnabled : Boolean = prop("isEnabled")
         val isPublic : Boolean = prop("isPublic")
         val login : String = prop("login")
-        val currentVersion : Int = prop("currentVersion")
+        val currentVersion : Int = prop[Long]("currentVersion").toInt
         val timestampCreated : Long = prop("timestampCreated")
         val timestampModified : Long = prop("timestampModified")
         Some((BranchImpl(name, optString(master), isEnabled, isPublic, optString(login), currentVersion,
@@ -54,14 +54,14 @@ class GAEVersionaryCore(val repository : Repository, branchKind : String, versio
       case Some(entity) => 
         def prop[T](name : String) = entity.getProperty(name).asInstanceOf[T]
         val branch : String = prop("branch")
-        val version : Int = prop("version")
+        val version : Int = prop[Long]("version").toInt
         val login : String = prop("login")
-        val importance : Int = prop("importance")
+        val importance : Int = prop[Long]("importance").toInt
         val comment : String = prop("comment")
         val timestamp : Long = prop("timestamp")
         val directory : ShortBlob = prop("directory")
-        val parentVersion : Int = prop("parentVersion")
-        val masterVersion : Int = prop("masterVersion")
+        val parentVersion : Int = prop[Long]("parentVersion").toInt
+        val masterVersion : Int = prop[Long]("masterVersion").toInt
         val isEnabled : Boolean = prop("isEnabled")
         val directoryPointer = repository.pointerFromBytes(Bytes(directory.getBytes())).asInstanceOf[DirectoryPointer]
         Some(VersionImpl(branch, version, optString(login), importance, comment, Timestamp(timestamp), 
