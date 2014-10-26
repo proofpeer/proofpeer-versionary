@@ -29,10 +29,12 @@ object PathGrammar {
     rule("FilePath", "RelativeFilePath", c => FilePath(false, c.RelativeFilePath[Vector[String]])) ++
     rule("FilePath", "PathSeparator RelativeFilePath", Connect("PathSeparator", "RelativeFilePath"), 
       c => FilePath(true, c.RelativeFilePath[Vector[String]])) ++
-    rule("Branch", "BranchId", c => BranchSpec(c.text("BranchId"), None, None)) ++
-    rule("Branch", "BranchId Colon Version",
-      connect("BranchId", "Colon", "Version"),
-      c => BranchSpec(c.text("BranchId"), Some(c.text("Version").toInt), None)) ++
+    rule("OptBranchId", "BranchId", c => Some(c.text("BranchId"))) ++
+    rule("OptBranchId", "", c => None) ++
+    rule("Branch", "OptBranchId", c => BranchSpec(c.OptBranchId, None, None)) ++
+    rule("Branch", "OptBranchId Colon Version",
+      connect("OptBranchId", "Colon", "Version"),
+      c => BranchSpec(c.OptBranchId, Some(c.text("Version").toInt), None)) ++
     rule("BranchSpec", "Branch", c => c.Branch[Any]) ++
     rule("BranchSpec", "Branch At Domain",
       connect("Branch", "At", "Domain"),
@@ -116,9 +118,10 @@ object FilePathOrdering extends Ordering[FilePath] {
   }
 }
 
-case class BranchSpec(name : String, version : Option[Int], domain : Option[String]) {
+case class BranchSpec(name : Option[String], version : Option[Int], domain : Option[String]) {
   def setDomain(d : String) : BranchSpec = BranchSpec(name, version, Some(d))
   override def toString : String = {
+    val n = if (name.isDefined) name.get else ""
     val v = if (version.isDefined) ":" + version.get else ""
     val d = if (domain.isDefined) "@" + domain.get else ""
     name + v + d
