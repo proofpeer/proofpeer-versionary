@@ -50,6 +50,11 @@ object PathTests extends Properties("Path") {
     Path("\\hello\\world@obua\\hello:-001@proofpeer.net") == Path(Some(BranchSpec(Some("obua\\hello"), Some(-1), Some("proofpeer.net"))), 
       FilePath("\\hello\\world"))
 
+  property("PathParsing4") =
+    Path("\\peers\\theoriiies@main@proofpeer.net") == 
+      Path(Some(BranchSpec(Some("main"), None, Some("proofpeer.net"))),
+        FilePath("\\peers\\theoriiies"))
+
   private val parent = FilePath("\\peers\\obua")
 
   property("FilePathResolve1") = 

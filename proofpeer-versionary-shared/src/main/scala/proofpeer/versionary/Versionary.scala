@@ -93,7 +93,7 @@ trait VersionaryCore {
   /** Returns the branch corresponding to the given name if such a branch exists in this Versionary. */
   def lookupBranch(branch : String) : Option[Branch]
 
-  /** Returns the version if such a version exists. */
+  /** Returns the version if such a version exists. Note that version cannot be a relative (i.e. non-positive) version. */
   def lookupVersion(branch : String, version : Int) : Option[Version]
 
   /** Creates a new branch together with its first version.  

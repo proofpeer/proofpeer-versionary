@@ -124,7 +124,13 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
     val n = if (name.isDefined) name.get else ""
     val v = if (version.isDefined) ":" + version.get else ""
     val d = if (domain.isDefined) "@" + domain.get else ""
-    name + v + d
+    n + v + d
+  }
+  def resolve(reference : BranchSpec) : BranchSpec = {
+    val n = if (name.isDefined) name else reference.name
+    val v = if (version.isDefined) version else reference.version
+    val d = if (domain.isDefined) domain else reference.domain
+    BranchSpec(n, v, d)
   }
 }
 
@@ -135,6 +141,22 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
         path.toString
       case Some(branch) =>
         path.toString + "@" + branch.toString
+    }
+  }
+  def resolve(reference : Path) : Option[Path] = {
+    if (!reference.isResolved) throw new RuntimeException("reference is not resolved")
+    path.resolve(reference.path) match {
+      case None => None
+      case Some(filepath) =>
+        if (!branch.isDefined) Some(Path(reference.branch, filepath))
+        else Some(Path(Some(branch.get.resolve(reference.branch.get)), filepath))
+    }
+  }
+  lazy val isResolved : Boolean = {
+    if (!path.isResolved || !branch.isDefined) false
+    else {
+      val b = branch.get
+      b.name.isDefined && b.domain.isDefined && !(b.version.isDefined && b.version.get < 0)
     }
   }
 }
