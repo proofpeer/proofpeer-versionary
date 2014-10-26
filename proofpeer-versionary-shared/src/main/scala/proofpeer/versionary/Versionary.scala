@@ -122,6 +122,9 @@ trait VersionaryCore {
 
 }
 
+trait Versionary extends VersionaryCore {
+}
+
 object Versionary {
 
   def normalizeBranchname(branch : String) : String = branch.toLowerCase
@@ -130,4 +133,9 @@ object Versionary {
     VersionaryImpl.core
   }  
 
+  private val versionary = new VersionaryExt(core)
+
+  def apply() : Versionary = versionary
+
 }
+

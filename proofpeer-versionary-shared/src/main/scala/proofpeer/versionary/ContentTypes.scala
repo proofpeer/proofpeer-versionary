@@ -3,20 +3,20 @@ package proofpeer.versionary
 import proofpeer.general.Bytes
 
 object ContentTypes {
-  val TEXT = 1
+  val PROOFSCRIPT = 1
 
   def contentTypeOf(contentTypeId : Int) : ContentType = {
     contentTypeId match {
-      case ContentTypes.TEXT => TextContentType
+      case ContentTypes.PROOFSCRIPT => ProofScriptContentType
       case _ => throw new RuntimeException("unknown content type: " + contentTypeId) 
     }
   }  
 }
 
-object TextContentType extends ContentType {
+object ProofScriptContentType extends ContentType {
   import proofpeer.general.StringUtils._
 
-  def contentTypeId = ContentTypes.TEXT
+  def contentTypeId = ContentTypes.PROOFSCRIPT
 
   def fromBytes(bytes : Bytes) : Any = {
     bytes.asString

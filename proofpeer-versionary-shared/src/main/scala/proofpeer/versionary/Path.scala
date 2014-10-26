@@ -52,7 +52,7 @@ object PathGrammar {
 
 case class FilePath(val absolute : Boolean, val path : Vector[String]) {
   override def toString = 
-    if (absolute) "\\" + path.mkString("\\") else path.mkString("\\")
+    if (absolute) "\\" + path.mkString("\\") else if (path.isEmpty) "." else path.mkString("\\")
   lazy val isResolved = absolute && !path.exists(s => s == "." || s == "..")
   
   /** Resolves this path relative to parentFilePath which must be resolved. */
@@ -118,9 +118,23 @@ object FilePathOrdering extends Ordering[FilePath] {
 
 case class BranchSpec(name : String, version : Option[Int], domain : Option[String]) {
   def setDomain(d : String) : BranchSpec = BranchSpec(name, version, Some(d))
+  override def toString : String = {
+    val v = if (version.isDefined) ":" + version.get else ""
+    val d = if (domain.isDefined) "@" + domain.get else ""
+    name + v + d
+  }
 }
 
-case class Path(branch : Option[BranchSpec], path : FilePath)
+case class Path(branch : Option[BranchSpec], path : FilePath) {
+  override def toString : String = {
+    branch match {
+      case None =>
+        path.toString
+      case Some(branch) =>
+        path.toString + "@" + branch.toString
+    }
+  }
+}
 
 object Path {
   def apply(path : String) : Path = {
