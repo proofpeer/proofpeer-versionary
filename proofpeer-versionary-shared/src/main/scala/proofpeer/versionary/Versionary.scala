@@ -123,6 +123,7 @@ trait VersionaryCore {
 }
 
 trait Versionary extends VersionaryCore {
+
 }
 
 object Versionary {
