@@ -101,6 +101,7 @@ object FilePath {
 }
 
 object FilePathOrdering extends Ordering[FilePath] {
+  
   def compare(a:FilePath, b:FilePath) : Int = {
     if (a.absolute != b.absolute) {
       if (a.absolute) -1 else 1
@@ -108,14 +109,19 @@ object FilePathOrdering extends Ordering[FilePath] {
       a.path.length - b.path.length
     } else {
       for (i <- 0 until a.path.length) {
-        val x = a.path(i).toLowerCase
-        val y = b.path(i).toLowerCase
-        val c = x compare y
+        val c = compareFilenames(a.path(i), b.path(i))
         if (c != 0) return c
       }
       0
     }
   }
+
+  def compareFilenames(a : String, b : String) : Int = {
+    val x = a.toLowerCase
+    val y = b.toLowerCase
+    x compare y
+  }
+  
 }
 
 case class BranchSpec(name : Option[String], version : Option[Int], domain : Option[String]) {

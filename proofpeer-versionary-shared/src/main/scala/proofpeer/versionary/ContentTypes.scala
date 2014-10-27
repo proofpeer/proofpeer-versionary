@@ -30,4 +30,6 @@ object ProofScriptContentType extends ContentType {
   def countConflicts(content : Any) = 0
   def merge2way(content1 : Any, content2 : Any) : Option[Any] = None
   def merge3way(content1 : Any, content2 : Any) : Option[Any] = None  
+
+  override def toString = "ProofScript"
 }

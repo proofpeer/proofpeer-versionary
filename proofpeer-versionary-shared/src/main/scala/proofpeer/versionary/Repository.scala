@@ -8,7 +8,7 @@ object Value {
   val DIRECTORY_KIND = 3
 }
 
-trait ValuePointer {
+sealed trait ValuePointer {
   def kind : Int
   def toBytes : Bytes
   def countConflicts : Int
@@ -60,14 +60,6 @@ trait ContentType {
   def merge3way(content1 : Any, content2 : Any) : Option[Any]
 }
 
-trait Repository {
-  def pointerFromBytes(bytes : Bytes) : ValuePointer
-  def loadValue(pointer : ValuePointer) : Value
-  def createConflict(master : Option[ValuePointer], topic : Option[ValuePointer]) : Conflict
-  def createDirectory(entries : Vector[(String, ValuePointer)]) : Directory
-  def createContent(contentTypeId : Int, content : Any) : Content
-}
-
 object Repository {
 
   def apply(storage : Storage) : Repository = {
@@ -77,4 +69,51 @@ object Repository {
   val default : Repository = apply(Storage())
 
 }
+
+trait Repository {
+  def pointerFromBytes(bytes : Bytes) : ValuePointer
+  def loadValue(pointer : ValuePointer) : Value
+  def createConflict(master : Option[ValuePointer], topic : Option[ValuePointer]) : Conflict
+  def createDirectory(entries : Vector[(String, ValuePointer)]) : Directory
+  def createContent(contentTypeId : Int, content : Any) : Content
+
+  /* -----------------
+   *  Derived Methods 
+   * ----------------- */
+
+  def loadDirectory(pointer : DirectoryPointer) : Directory =
+    loadValue(pointer).asInstanceOf[Directory]
+
+  def loadContent(pointer : ContentPointer) : Content =
+    loadValue(pointer).asInstanceOf[Content]
+
+  def loadConflict(pointer : ConflictPointer) : Conflict = 
+    loadValue(pointer).asInstanceOf[Conflict]
+
+  private def lookupPointer(root : ValuePointer, path : Seq[String], collected : List[String]) : 
+    Option[(Seq[String], ValuePointer)] = 
+  {
+    if (path.isEmpty)
+      Some((collected.reverse, root))
+    else {
+      root match {
+        case directoryPointer : DirectoryPointer =>
+          val directory = loadDirectory(directoryPointer)
+          val name = path.head
+          directory.entries.find(entry => 
+            FilePathOrdering.compareFilenames(entry._1, name) == 0
+          ) match {
+            case None => None
+            case Some((n, p)) => lookupPointer(p, path.tail, n::collected)
+          }
+        case _ => None
+      }
+    }
+  }
+
+  def lookupPointer(root : ValuePointer, path : Seq[String]) : 
+    Option[(Seq[String], ValuePointer)] = lookupPointer(root, path, List())
+
+}
+
 
