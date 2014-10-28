@@ -90,11 +90,11 @@ trait Repository {
   def loadConflict(pointer : ConflictPointer) : Conflict = 
     loadValue(pointer).asInstanceOf[Conflict]
 
-  private def lookupPointer(root : ValuePointer, path : Seq[String], collected : List[String]) : 
-    Option[(Seq[String], ValuePointer)] = 
+  private def partialLookupPointer(root : ValuePointer, path : Seq[String], collected : List[String]) : 
+    (Seq[String], ValuePointer, Seq[String]) = 
   {
     if (path.isEmpty)
-      Some((collected.reverse, root))
+      (collected.reverse, root, path)
     else {
       root match {
         case directoryPointer : DirectoryPointer =>
@@ -103,16 +103,26 @@ trait Repository {
           directory.entries.find(entry => 
             FilePathOrdering.compareFilenames(entry._1, name) == 0
           ) match {
-            case None => None
-            case Some((n, p)) => lookupPointer(p, path.tail, n::collected)
+            case None => (collected.reverse, root, path)
+            case Some((n, p)) => partialLookupPointer(p, path.tail, n::collected)
           }
-        case _ => None
+        case _ => (collected.reverse, root, path)
       }
-    }
+    }    
+  }
+
+  def partialLookupPointer(root : ValuePointer, path : Seq[String]) : 
+    (Seq[String], ValuePointer, Seq[String]) =
+  {
+    partialLookupPointer(root, path, List())
   }
 
   def lookupPointer(root : ValuePointer, path : Seq[String]) : 
-    Option[(Seq[String], ValuePointer)] = lookupPointer(root, path, List())
+    Option[(Seq[String], ValuePointer)] = 
+  {
+    val (foundPath, foundPointer, leftPath) = partialLookupPointer(root, path)
+    if (leftPath.isEmpty) Some((foundPath, foundPointer)) else None
+  }
 
 }
 

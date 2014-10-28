@@ -15,6 +15,12 @@ object VersionaryConsole {
 
 class VersionaryConsole(versionary : Versionary, login : String, currentPath : Path, domain : String) {
 
+  def INVALID_PATH[S] : Either[S, String] = Right("Invalid path.")
+
+  def OUTDATED_VERSION[S](branch : Branch, version : Version) : Either[S, String] =
+    Right("Version " + version.version + " is not the current version (" + 
+      branch.currentVersion + ") of the branch.") 
+
   def resolve(path : String) : Option[Path] = {
     PathGrammar.parsePath(path) match {
       case None => None
@@ -94,7 +100,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
   def lsCmd(path : String) : Either[String, String] = {
     val separator = ":\n\n"
     resolvePath(path) match {
-      case None => Right("Invalid path.")
+      case None => INVALID_PATH
       case Some((branch, version, valuepointer, p)) =>
         val output = new StringBuilder()
         output ++= describePointer(p.toString, valuepointer)
@@ -144,8 +150,48 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
 
   def pathCmd(path : String) : Either[String, String] = {
     resolve(path) match {
-      case None => Right("The path is invalid.")
+      case None => INVALID_PATH
       case Some(path) => Left(path.toString)
+    }
+  }
+
+  def cdCmd(path : String) : Either[(String, String), String] = {
+    resolve(path) match {
+      case None => INVALID_PATH
+      case Some(path) => 
+        val versionIsRelative = path.versionIsRelative
+        loadPath(path) match {
+          case Some((branch, version, Some((pointer, p)))) => 
+            pointer match {
+              case _ : DirectoryPointer =>
+                val path = 
+                  if (!versionIsRelative || version.version != branch.currentVersion) 
+                    p
+                  else 
+                    p.removeVersion
+                Left((path.toString, "Switched to directory '" + path.toString + "'."))
+              case _ => Right("No such directory.")
+            }
+          case _ => INVALID_PATH
+        }
+    }
+  }
+
+  def mkdirCmd(path : String) : Either[(String, String), String] = {
+    resolve(path) match {
+      case None => INVALID_PATH
+      case Some(path) =>
+        loadPath(path) match {
+          case Some((branch, version, None)) => 
+            if (version.version != branch.currentVersion)
+              OUTDATED_VERSION(branch, version)
+            else {
+              Right("Not implemented yet.")
+            }
+          case Some(_) =>
+            Right("The path already exists.")
+          case None => INVALID_PATH
+        }
     }
   }
 

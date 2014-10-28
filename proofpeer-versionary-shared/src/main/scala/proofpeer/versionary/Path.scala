@@ -121,7 +121,7 @@ object FilePathOrdering extends Ordering[FilePath] {
     val y = b.toLowerCase
     x compare y
   }
-  
+
 }
 
 case class BranchSpec(name : Option[String], version : Option[Int], domain : Option[String]) {
@@ -138,6 +138,12 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
     val d = if (domain.isDefined) domain else reference.domain
     BranchSpec(n, v, d)
   }
+  def versionIsRelative : Boolean = 
+    version match {
+      case None => true
+      case Some(v) => v <= 0
+    }
+  def removeVersion : BranchSpec = BranchSpec(name, None, domain)
 }
 
 case class Path(branch : Option[BranchSpec], path : FilePath) {
@@ -165,6 +171,16 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
       b.name.isDefined && b.domain.isDefined && !(b.version.isDefined && b.version.get < 0)
     }
   }
+  def versionIsRelative : Boolean = 
+    branch match {
+      case None => true
+      case Some(branch) => branch.versionIsRelative
+    }
+  def removeVersion : Path = 
+    branch match {
+      case None => this
+      case Some(branch) => Path(Some(branch.removeVersion), path)
+    }
 }
 
 object Path {
