@@ -186,7 +186,21 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
             if (version.version != branch.currentVersion)
               OUTDATED_VERSION(branch, version)
             else {
-              Right("Not implemented yet.")
+              val r = versionary.repository
+              r.mkdir(r.loadDirectory(version.directory), path.path.path.toList) match {
+                case None => INVALID_PATH
+                case Some((createdFilePath, createdDirectory)) =>
+                  val comment = "Created directory '" + FilePath(true, createdFilePath.toVector) + "'."
+                  versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment, 
+                    createdDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
+                  {
+                    case Left((newBranch, newVersion)) =>
+                      val newPath = path.removeVersion
+                      val output = "Created directory '" + (path.removeVersion) + "'."
+                      Left((newPath.toString, output)) 
+                    case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                  }
+              }
             }
           case Some(_) =>
             Right("The path already exists.")

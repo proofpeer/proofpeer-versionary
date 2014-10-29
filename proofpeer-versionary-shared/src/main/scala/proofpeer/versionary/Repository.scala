@@ -81,6 +81,8 @@ trait Repository {
    *  Derived Methods 
    * ----------------- */
 
+  def emptyDirectory : Directory = createDirectory(Vector())
+
   def loadDirectory(pointer : DirectoryPointer) : Directory =
     loadValue(pointer).asInstanceOf[Directory]
 
@@ -122,6 +124,60 @@ trait Repository {
   {
     val (foundPath, foundPointer, leftPath) = partialLookupPointer(root, path)
     if (leftPath.isEmpty) Some((foundPath, foundPointer)) else None
+  }
+
+  /** Returns an integer 0 <= i <= entries.size such that 
+    *  - entries(j) < filename for all j < i
+    *  - filename < entries(j) for all i < j
+    *  - filename <= entries(j) for all i = j
+    * This assumes that entries is sorted and duplicate-free. 
+    */
+  def findPosition(entries : Vector[(String, ValuePointer)], filename : String) : Int = {
+    var i = 0
+    val len = entries.size
+    while (i < len) {
+      val c = FilePathOrdering.compareFilenames(entries(i)._1, filename)
+      if (c >= 0) return i
+      i = i + 1
+    }
+    return len
+  }
+
+  def findEntry(entries : Vector[(String, ValuePointer)], filename : String) : 
+    (Int, Option[(String, ValuePointer)]) = 
+  {
+    val position = findPosition(entries, filename)
+    if (position < entries.size && FilePathOrdering.compareFilenames(entries(position)._1, filename) == 0)
+      (position, Some(entries(position)))
+    else
+      (position, None)
+  }
+
+  def mkdir(root : Directory, path : List[String]) : Option[(List[String], Directory)] = {
+    if (path.isEmpty) Some((path, root))
+    else {
+      val filename = path.head
+      findEntry(root.entries, filename) match {
+        case (pos, None) =>
+          mkdir(emptyDirectory, path.tail) match {
+            case None => throw new RuntimeException("mkdir: internal error")
+            case Some((createdPath, createdDirectory)) =>
+              val entries = root.entries.take(pos) ++ Vector((filename, createdDirectory.pointer)) ++ root.entries.drop(pos)
+              Some((filename::createdPath, createDirectory(entries)))
+          }
+        case (pos, Some((foundName, foundPointer))) =>
+          foundPointer match {
+            case directoryPointer : DirectoryPointer =>
+              mkdir(loadDirectory(directoryPointer), path.tail) match {
+                case None => None
+                case Some((createdPath, createdDirectory)) =>
+                  val entries = root.entries.take(pos) ++ Vector((foundName, createdDirectory.pointer)) ++ root.entries.drop(pos+1)
+                  Some((foundName::createdPath, createDirectory(entries)))
+              }
+            case _ => None
+          }
+      }
+    }
   }
 
 }

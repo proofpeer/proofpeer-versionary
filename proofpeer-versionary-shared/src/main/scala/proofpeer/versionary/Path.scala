@@ -144,6 +144,7 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
       case Some(v) => v <= 0
     }
   def removeVersion : BranchSpec = BranchSpec(name, None, domain)
+  def setVersion(version : Int) : BranchSpec = BranchSpec(name, Some(version), domain)
 }
 
 case class Path(branch : Option[BranchSpec], path : FilePath) {
@@ -181,6 +182,12 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
       case None => this
       case Some(branch) => Path(Some(branch.removeVersion), path)
     }
+  def setVersion(version : Int) : Path = {
+    branch match {
+      case None => Path(Some(BranchSpec(None, Some(version), None)), path)
+      case Some(branch) => Path(Some(branch.setVersion(version)), path)
+    }
+  }
 }
 
 object Path {
