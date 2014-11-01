@@ -11,8 +11,8 @@ object Importance {
   /** The version is a sync. */
   val SYNC = 3000
 
-  /** The version has been explicitly created by the peer. */
-  val EXPLICIT = 4000
+  /** The version has been explicitly created by the peer by an explicit commit. */
+  val COMMIT = 4000
 
   /** The version is a milestone. */
   val MILESTONE = 5000
