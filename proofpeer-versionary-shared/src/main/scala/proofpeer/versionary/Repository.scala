@@ -180,6 +180,34 @@ trait Repository {
     }
   }
 
+  def rm(root : Directory, path : List[String]) : Option[(List[String], Directory)] = {
+    if (path.isEmpty) None
+    else {
+      val filename = path.head
+      findEntry(root.entries, filename) match {
+        case (pos, None) => None
+        case (pos, Some((foundName, foundPointer))) =>
+          val tail = path.tail
+          if (tail.isEmpty) {
+            val entries = root.entries.take(pos) ++ root.entries.drop(pos + 1)
+            Some((foundName :: tail, createDirectory(entries)))
+          } else {
+            foundPointer match {
+              case directoryPointer : DirectoryPointer =>
+                rm(loadDirectory(directoryPointer), tail) match {
+                  case None => None
+                  case Some((path, updatedDir)) =>
+                    val entries = root.entries.take(pos) ++ Vector((foundName, updatedDir.pointer)) ++
+                      root.entries.drop(pos + 1)
+                    Some((foundName :: tail, createDirectory(entries)))
+                }
+              case _ => None
+            }
+          }
+      }
+    }
+  }
+
 }
 
 

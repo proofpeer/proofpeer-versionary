@@ -196,7 +196,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                   {
                     case Left((newBranch, newVersion)) =>
                       val newPath = path.removeVersion
-                      val output = "Created directory '" + (path.removeVersion) + "'."
+                      val output = "Created directory '" + newPath + "'."
                       Left((newPath.toString, output)) 
                     case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
                   }
@@ -208,5 +208,33 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
         }
     }
   }
+
+  def rmCmd(path : String) : Either[String, String] = {
+    resolvePath(path) match {
+      case None => INVALID_PATH
+      case Some((branch, version, valuepointer, path)) =>
+        if (version.version != branch.currentVersion)
+          OUTDATED_VERSION(branch, version)
+        else {
+          val r = versionary.repository
+          r.rm(r.loadDirectory(version.directory), path.path.path.toList) match {
+            case None => Right("Cannot delete toplevel directory.")
+            case Some((deletedFilePath, updatedDirectory)) =>
+              val comment = "Deleted '" + FilePath(true, deletedFilePath.toVector) + "'."
+              versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment,
+                updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
+              {
+                case Left((newBranch, newVersion)) =>
+                  Left("Deleted object '" + path + "'. ")
+                case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+              }
+          }
+        }
+    }
+  }
+
+  def cpCmd(sourcePath : String, destPath : String) : Either[String, String] = Right("cp is not implemented yet")
+
+  def logCmd(importance : Int, count : Int) : Either[String, String] = Right("log is not implemented yet")
 
 }
