@@ -132,7 +132,7 @@ trait Repository {
     *  - filename <= entries(j) for all i = j
     * This assumes that entries is sorted and duplicate-free. 
     */
-  def findPosition(entries : Vector[(String, ValuePointer)], filename : String) : Int = {
+  private def findPosition(entries : Vector[(String, ValuePointer)], filename : String) : Int = {
     var i = 0
     val len = entries.size
     while (i < len) {
@@ -143,7 +143,7 @@ trait Repository {
     return len
   }
 
-  def findEntry(entries : Vector[(String, ValuePointer)], filename : String) : 
+  private def findEntry(entries : Vector[(String, ValuePointer)], filename : String) : 
     (Int, Option[(String, ValuePointer)]) = 
   {
     val position = findPosition(entries, filename)
@@ -153,17 +153,34 @@ trait Repository {
       (position, None)
   }
 
+  def findEntry(directory : Directory, filename : String) : (Int, Option[(String, ValuePointer)]) = 
+    findEntry(directory.entries, filename)
+
+  def insertEntry(directory : Directory, pos : Int, filename : String, pointer : ValuePointer) : Directory = {
+    val entries = directory.entries.take(pos) ++ Vector((filename, pointer)) ++ directory.entries.drop(pos)
+    createDirectory(entries)
+  }
+
+  def replaceEntry(directory : Directory, pos : Int, filename : String, pointer : ValuePointer) : Directory = {
+    val entries = directory.entries.take(pos) ++ Vector((filename, pointer)) ++ directory.entries.drop(pos + 1)
+    createDirectory(entries)    
+  }
+
+  def removeEntry(directory : Directory, pos : Int) : Directory = {
+    val entries = directory.entries.take(pos) ++ directory.entries.drop(pos + 1)
+    createDirectory(entries)
+  }
+
   def mkdir(root : Directory, path : List[String]) : Option[(List[String], Directory)] = {
     if (path.isEmpty) Some((path, root))
     else {
       val filename = path.head
-      findEntry(root.entries, filename) match {
+      findEntry(root, filename) match {
         case (pos, None) =>
           mkdir(emptyDirectory, path.tail) match {
             case None => throw new RuntimeException("mkdir: internal error")
             case Some((createdPath, createdDirectory)) =>
-              val entries = root.entries.take(pos) ++ Vector((filename, createdDirectory.pointer)) ++ root.entries.drop(pos)
-              Some((filename::createdPath, createDirectory(entries)))
+              Some((filename::createdPath, insertEntry(root, pos, filename, createdDirectory.pointer)))
           }
         case (pos, Some((foundName, foundPointer))) =>
           foundPointer match {
@@ -171,8 +188,7 @@ trait Repository {
               mkdir(loadDirectory(directoryPointer), path.tail) match {
                 case None => None
                 case Some((createdPath, createdDirectory)) =>
-                  val entries = root.entries.take(pos) ++ Vector((foundName, createdDirectory.pointer)) ++ root.entries.drop(pos+1)
-                  Some((foundName::createdPath, createDirectory(entries)))
+                  Some((foundName::createdPath, replaceEntry(root, pos, foundName, createdDirectory.pointer)))
               }
             case _ => None
           }
@@ -184,25 +200,47 @@ trait Repository {
     if (path.isEmpty) None
     else {
       val filename = path.head
-      findEntry(root.entries, filename) match {
+      findEntry(root, filename) match {
         case (pos, None) => None
         case (pos, Some((foundName, foundPointer))) =>
           val tail = path.tail
           if (tail.isEmpty) {
-            val entries = root.entries.take(pos) ++ root.entries.drop(pos + 1)
-            Some((foundName :: tail, createDirectory(entries)))
+            Some((foundName :: tail, removeEntry(root, pos)))
           } else {
             foundPointer match {
               case directoryPointer : DirectoryPointer =>
                 rm(loadDirectory(directoryPointer), tail) match {
                   case None => None
                   case Some((path, updatedDir)) =>
-                    val entries = root.entries.take(pos) ++ Vector((foundName, updatedDir.pointer)) ++
-                      root.entries.drop(pos + 1)
-                    Some((foundName :: tail, createDirectory(entries)))
+                    Some((foundName :: tail, replaceEntry(root, pos, foundName, updatedDir.pointer)))
                 }
               case _ => None
             }
+          }
+      }
+    }
+  }
+
+  def set(root : Directory, path : List[String], pointer : ValuePointer) : Option[(List[String], Directory)] = {
+    if (path.isEmpty) None
+    else {
+      val filename = path.head
+      val tail = path.tail
+      findEntry(root, filename) match {
+        case (pos, None) if !tail.isEmpty => None
+        case (pos, None) => 
+          Some((path, insertEntry(root, pos, filename, pointer)))
+        case (pos, Some((foundName, foundPointer))) if tail.isEmpty =>
+          Some((foundName :: tail, replaceEntry(root, pos, foundName, pointer)))
+        case (pos, Some((foundName, foundPointer))) =>
+          foundPointer match {
+            case directoryPointer : DirectoryPointer =>
+              set(loadDirectory(directoryPointer), tail, pointer) match {
+                case None => None
+                case Some((path, updatedDir)) =>
+                  Some((foundName :: path, replaceEntry(root, pos, foundName, updatedDir.pointer)))
+              }
+            case _ => None
           }
       }
     }

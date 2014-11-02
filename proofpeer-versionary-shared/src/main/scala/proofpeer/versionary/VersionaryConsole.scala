@@ -233,7 +233,37 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
-  def cpCmd(sourcePath : String, destPath : String) : Either[String, String] = Right("cp is not implemented yet")
+  def cpCmd(sourcePath : String, destPath : String) : Either[String, String] = {
+    resolvePath(sourcePath) match {
+      case None => Right("Invalid source path.")
+      case Some((sourceBranch, sourceVersion, sourceValuepointer, sourcePath)) =>
+        resolve(destPath) match {
+          case None => Right("Invalid destination path.")
+          case Some(destPath) => 
+            loadVersion(destPath) match {
+              case None => Right("Invalid destination path.")
+              case Some((branch, version)) =>
+                if (version.version != branch.currentVersion)
+                  OUTDATED_VERSION(branch, version)
+                else {
+                  val r = versionary.repository
+                  r.set(r.loadDirectory(version.directory), destPath.path.path.toList, sourceValuepointer) match {
+                    case None => Right("Invalid destination directory.")
+                    case Some((filePath, updatedDirectory)) =>
+                      val comment = "Copied '" + sourcePath + "' to '" + FilePath(true, filePath.toVector) + "'."
+                      versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment,
+                        updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
+                      {
+                        case Left((newBranch, newVersion)) =>
+                          Left("Copied '" + sourcePath + "' to '" + destPath.removeVersion + "'.")
+                        case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                      } 
+                  }
+                }
+            }
+        } 
+    }
+  }
 
   def logCmd(importance : Int, count : Int) : Either[String, String] = Right("log is not implemented yet")
 
