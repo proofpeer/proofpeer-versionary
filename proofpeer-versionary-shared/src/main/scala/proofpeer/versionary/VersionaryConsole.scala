@@ -265,6 +265,8 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
-  def logCmd(importance : Int, count : Int) : Either[String, String] = Right("log is not implemented yet")
+  def logCmd(importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = Right("log is not implemented yet")
+
+  def historyCmd(importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = Right("history is not implemented yet")
 
 }

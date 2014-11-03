@@ -11,3 +11,5 @@ object Timestamp {
   def apply(millis : Long) : Timestamp = new Timestamp(millis)
 
 }
+
+case class TimeSpan(since : Option[Long], until : Option[Long])

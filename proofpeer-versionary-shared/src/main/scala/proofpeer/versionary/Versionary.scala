@@ -5,17 +5,17 @@ object Importance {
   /** The version has been created automatically by the system. */
   val AUTOMATIC = 1000
 
+  /** The version has been explicitly created by the peer by an explicit commit. */
+  val COMMIT = 2000
+
   /** The version is a pull. */
-  val PULL = 2000
+  val PULL = 4000
 
   /** The version is a sync. */
-  val SYNC = 3000
-
-  /** The version has been explicitly created by the peer by an explicit commit. */
-  val COMMIT = 4000
+  val SYNC = 8000
 
   /** The version is a milestone. */
-  val MILESTONE = 5000
+  val MILESTONE = 16000
 
 }
 
