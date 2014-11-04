@@ -265,8 +265,95 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
-  def logCmd(importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = Right("log is not implemented yet")
+  def history(version : Version, importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : List[Version] = {
+    val tail : List[Version] = 
+      if (version.parentVersion >= 0 && timespan.inPresentOrFuture(version.timestamp)) {
+        val parentVersion = versionary.lookupVersion(version.branch, version.parentVersion)
+        parentVersion match {
+          case None => List()
+          case Some(parentVersion) => history(parentVersion, importance, timespan, onlyEnabled)
+        }
+      } else List()
+    if ((!onlyEnabled || version.isEnabled) && timespan.inPresent(version.timestamp) && 
+        Versionary.matchesImportance(importance, version.importance))
+      version :: tail
+    else 
+      tail
+  }
 
-  def historyCmd(importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = Right("history is not implemented yet")
+  def describeImportance(importance : Int) : String = {
+    import Importance._
+    importance match {
+      case AUTOMATIC => "AUTOMATIC"
+      case COMMIT => "COMMIT"
+      case PULL => "PULL"
+      case SYNC => "SYNC"
+      case MILESTONE => "MILESTONE"
+      case _ => importance.toString
+    }
+  }
+
+  def describeVersion(version : Version) : String = {
+    val info = "(" + describeImportance(version.importance) + ", " + version.timestamp + ")"
+    "Version " + version.version + " " + info + ": " + version.comment 
+  }
+
+  def historyCmd(importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = {
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        val versions = history(version, importance, timespan, onlyEnabled).toVector
+        val size = versions.size
+        val output : StringBuilder = new StringBuilder()
+        output.append("The current version of the branch is " + branch.currentVersion + ".\n")
+        output.append("The working version is " + version.version + ".\n")
+        val e = if (onlyEnabled) "enabled" else "both enabled and disabled"
+        val im = if (importance >= 0) "= " + describeImportance(importance) else "≥ " + describeImportance(-importance)
+        output.append("Querying " + e + " predecessor versions from " + timespan+" with importance " + im + ".\n")
+        if (size == 0)
+          output.append("There are no versions which match the query.")
+        else if (size == 1)
+          output.append("There is one version which matches the query:\n")
+        else
+          output.append("There are " + size + " versions which match the query:\n")
+        for (i <- 1 to size) {
+          output.append("\n" + describeVersion(versions(i - 1)))
+        }
+        output.append("\n\n")
+        Left(output.toString)
+    }
+  }
+
+  def logCmd(importance : Int, _timespan : TimeSpan, onlyEnabled : Boolean) : Either[String, String] = {
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        val timespan = 
+          if (branch.currentVersion != version.version)
+            _timespan.limitFuture(version.timestamp)
+          else
+            _timespan
+        val versions = versionary.queryVersions(version.branch, importance, timespan, onlyEnabled)
+        val size = versions.size
+        val output : StringBuilder = new StringBuilder()
+        output.append("The current version of the branch is " + branch.currentVersion + ".\n")
+        output.append("The working version is " + version.version + ".\n")
+        val e = if (onlyEnabled) "enabled" else "both enabled and disabled"
+        val im = if (importance >= 0) "= " + describeImportance(importance) else "≥ " + describeImportance(-importance)
+        output.append("Querying " + e + " versions from " + timespan+" with importance " + im + ".\n")
+        if (size == 0)
+          output.append("There are no versions which match the query.")
+        else if (size == 1)
+          output.append("There is one version which matches the query:\n")
+        else
+          output.append("There are " + size + " versions which match the query:\n")
+        for (i <- 1 to size) {
+          output.append("\n" + describeVersion(versions(i - 1)))
+        }
+        output.append("\n\n")
+        Left(output.toString)
+    }
+  }
+
 
 }

@@ -31,4 +31,8 @@ object VersionaryImpl extends VersionaryCore {
     throw new RuntimeException("not implemented yet")
   }
 
+  def queryVersions(branch : String, importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : List[Version] = {
+    throw new RuntimeException("not implemented yet")
+  }
+
 }

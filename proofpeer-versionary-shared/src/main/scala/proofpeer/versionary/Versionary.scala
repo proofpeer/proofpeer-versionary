@@ -120,6 +120,8 @@ trait VersionaryCore {
   /** Returns the names of all branches in this Versionary owned by the given peer. */
   def branchesOfLogin(login : String) : Vector[String]
 
+  def queryVersions(branch : String, importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : List[Version]
+
 }
 
 trait Versionary extends VersionaryCore {
@@ -130,6 +132,13 @@ object Versionary {
 
   def normalizeBranchname(branch : String) : String = branch.toLowerCase
 
+  def matchesImportance(importancePattern : Int, importance : Int) : Boolean = {
+    if (importancePattern < 0) 
+      importance >= -importancePattern
+    else
+      importance == importancePattern
+  }
+  
   def core : VersionaryCore = {
     VersionaryImpl.core
   }  

@@ -22,5 +22,8 @@ class VersionaryExt(core : VersionaryCore) extends Versionary {
 
   def branchesOfLogin(login : String) : Vector[String] =
     core.branchesOfLogin(login)
-  
+
+  def queryVersions(branch : String, importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : List[Version] =
+    core.queryVersions(branch, importance, timespan, onlyEnabled)
+
 }

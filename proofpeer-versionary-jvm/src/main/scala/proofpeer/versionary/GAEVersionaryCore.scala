@@ -1,6 +1,8 @@
 package proofpeer.versionary
 
 import com.google.appengine.api.datastore._
+import com.google.appengine.api.datastore.Query.Filter
+
 import GAETools._
 import proofpeer.general.Bytes
 import Versionary.normalizeBranchname
@@ -47,25 +49,28 @@ class GAEVersionaryCore(val repository : Repository, branchKind : String, versio
   def lookupBranch(branch : String) : Option[Branch] = 
     lookupBranchAndEntity(branch).map(_._1)
 
+  private def readVersion(entity : Entity) : Version = {
+    def prop[T](name : String) = entity.getProperty(name).asInstanceOf[T]
+    val branch : String = prop("branch")
+    val version : Int = prop[Long]("version").toInt
+    val login : String = prop("login")
+    val importance : Int = prop[Long]("importance").toInt
+    val comment : String = prop("comment")
+    val timestamp : Long = prop("timestamp")
+    val directory : ShortBlob = prop("directory")
+    val parentVersion : Int = prop[Long]("parentVersion").toInt
+    val masterVersion : Int = prop[Long]("masterVersion").toInt
+    val isEnabled : Boolean = prop("isEnabled")
+    val directoryPointer = repository.pointerFromBytes(Bytes(directory.getBytes())).asInstanceOf[DirectoryPointer]
+    VersionImpl(branch, version, optString(login), importance, comment, Timestamp(timestamp), 
+      directoryPointer, parentVersion, masterVersion, isEnabled)
+  }
+
   def lookupVersion(branch : String, version : Int) : Option[Version] = {
     val key = versionKey(normalizeBranchname(branch), version)
     get(datastoreService(), key) match {
       case None => None
-      case Some(entity) => 
-        def prop[T](name : String) = entity.getProperty(name).asInstanceOf[T]
-        val branch : String = prop("branch")
-        val version : Int = prop[Long]("version").toInt
-        val login : String = prop("login")
-        val importance : Int = prop[Long]("importance").toInt
-        val comment : String = prop("comment")
-        val timestamp : Long = prop("timestamp")
-        val directory : ShortBlob = prop("directory")
-        val parentVersion : Int = prop[Long]("parentVersion").toInt
-        val masterVersion : Int = prop[Long]("masterVersion").toInt
-        val isEnabled : Boolean = prop("isEnabled")
-        val directoryPointer = repository.pointerFromBytes(Bytes(directory.getBytes())).asInstanceOf[DirectoryPointer]
-        Some(VersionImpl(branch, version, optString(login), importance, comment, Timestamp(timestamp), 
-          directoryPointer, parentVersion, masterVersion, isEnabled))
+      case Some(entity) => Some(readVersion(entity))
     }
   }
 
@@ -178,6 +183,33 @@ class GAEVersionaryCore(val repository : Repository, branchKind : String, versio
       for (b <- fetch(datastore, q, Int.MaxValue)) 
         yield b.getProperty("name").asInstanceOf[String]
     names.toVector
+  }
+
+  def queryVersions(branch : String, importance : Int, timespan : TimeSpan, onlyEnabled : Boolean) : List[Version] = {
+    var filters : List[Filter] = List(equal($("branch"), Versionary.normalizeBranchname(branch)))
+    if (importance == Importance.AUTOMATIC || importance == -Importance.AUTOMATIC) {
+      timespan.since match {
+        case Some(since) => filters = geq($("timestamp"), since) :: filters
+        case None =>
+      }
+      timespan.until match {
+        case Some(until) => filters = leq($("timestamp"), until) :: filters
+        case None =>
+      }
+    } else {
+      if (importance >= 0) {
+        filters = equal($("importance"), importance) :: filters
+      } else {
+        filters = geq($("importance"), -importance) :: filters
+      }      
+    }
+    if (onlyEnabled) filters = equal($("isEnabled"), true) :: filters
+    val filter = and(filters.head, filters.tail : _*)
+    val q = query(versionKind, filter)
+    val versionEntities = fetch(datastoreService, q, Int.MaxValue)
+    def filterVersion(version : Version) : Boolean = 
+      timespan.inPresent(version.timestamp) && Versionary.matchesImportance(importance, version.importance)
+    versionEntities.map(readVersion _).filter(filterVersion _).sortBy(v => -v.version)
   }
 
 } 
