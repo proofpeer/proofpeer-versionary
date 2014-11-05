@@ -177,7 +177,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
-  def mkdirCmd(path : String) : Either[(String, String), String] = {
+  def mkdirCmd(path : String) : Either[String, String] = {
     resolve(path) match {
       case None => INVALID_PATH
       case Some(path) =>
@@ -197,7 +197,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                     case Left((newBranch, newVersion)) =>
                       val newPath = path.removeVersion
                       val output = "Created directory '" + newPath + "'."
-                      Left((newPath.toString, output)) 
+                      Left(output) 
                     case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
                   }
               }
@@ -355,5 +355,32 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
+  def branchCmd(id : Option[String]) : Either[String, String] = {
+    Right("branch is not implemented yet")
+  }
+
+  def branchesCmd(loginOfOwner : Option[String]) : Either[String, String] = {
+    Right("branches is not implemented yet")
+  }
+
+  def revertCmd(version : String) : Either[String, String] = {
+    Right("revert is not implemented yet")
+  }
+
+  def pullCmd() : Either[String, String] = {
+    Right("pull is not implemented yet")
+  }
+
+  def syncCmd() : Either[String, String] = {
+    Right("sync is not implemented yet")
+  }
+
+  def resolveCmd(path : String, chooseMaster : Boolean) : Either[String, String] = {
+    Right("resolve is not implemented yet")
+  }
+
+  def commitCmd(message : String) : Either[String, String] = {
+    Right("commit is not implemented yet")
+  }
 
 }
