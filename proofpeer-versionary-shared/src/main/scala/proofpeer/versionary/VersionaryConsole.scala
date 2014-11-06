@@ -305,8 +305,9 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
         val versions = history(version, importance, timespan, onlyEnabled).toVector
         val size = versions.size
         val output : StringBuilder = new StringBuilder()
-        output.append("The current version of the branch is " + branch.currentVersion + ".\n")
+        output.append("The current version of branch '" + branch.name + "' is " + branch.currentVersion + ".\n")
         output.append("The working version is " + version.version + ".\n")
+        if (branch.master.isDefined) output.append("Its master branch is '" + branch.master.get + "'.\n")
         val e = if (onlyEnabled) "enabled" else "both enabled and disabled"
         val im = if (importance >= 0) "= " + describeImportance(importance) else "≥ " + describeImportance(-importance)
         output.append("Querying " + e + " predecessor versions from " + timespan+" with importance " + im + ".\n")
@@ -336,8 +337,9 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
         val versions = versionary.queryVersions(version.branch, importance, timespan, onlyEnabled)
         val size = versions.size
         val output : StringBuilder = new StringBuilder()
-        output.append("The current version of the branch is " + branch.currentVersion + ".\n")
+        output.append("The current version of branch '" + branch.name + "' is " + branch.currentVersion + ".\n")
         output.append("The working version is " + version.version + ".\n")
+        if (branch.master.isDefined) output.append("Its master branch is '" + branch.master.get + "'.\n")
         val e = if (onlyEnabled) "enabled" else "both enabled and disabled"
         val im = if (importance >= 0) "= " + describeImportance(importance) else "≥ " + describeImportance(-importance)
         output.append("Querying " + e + " versions from " + timespan+" with importance " + im + ".\n")
@@ -355,16 +357,91 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
-  def branchCmd(id : Option[String]) : Either[String, String] = {
-    Right("branch is not implemented yet")
+  def branchCmd(id : Option[String]) : Either[(String, String), String] = {
+    val branchname = login + "\\" + (id match {
+      case None => "b" + Timestamp.now.toMillis.toString
+      case Some(id) => id
+    })
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        val master = Some((branch.name, version.version))
+        versionary.createNewBranch(branchname, master, true, Some(login), version.directory) match {
+          case Left((newbranch, newversion)) =>
+            val branchspec = BranchSpec(Some(newbranch.name), None, currentPath.domain)
+            val newpath = Path(Some(branchspec), currentPath.path)
+            val status = newpath.toString
+            val output = "Created branch '" + branchspec + "'."
+            Left((status, output))
+          case Right(branch) =>
+            Right("Branch '" + branch.name + "' already exists.")
+        }
+    }
   }
 
   def branchesCmd(loginOfOwner : Option[String]) : Either[String, String] = {
-    Right("branches is not implemented yet")
+    val owner = 
+      loginOfOwner match {
+        case None => login
+        case Some(loginOfOwner) => loginOfOwner
+      }
+    val branchnames = versionary.branchesOfLogin(owner)
+    val size = branchnames.size
+    val output = new StringBuilder()
+    if (size == 0)
+      output.append("Peer '" + owner + "' owns no branches.\n")
+    else {
+      if (size == 1) 
+        output.append("Peer '" + owner + "' owns one branch:\n")
+      else
+        output.append("Peer '" + owner + "' owns " + size + " branches:\n")
+      for (i <- 1 to size) {
+        output.append("" + i + ") " + branchnames(i-1) + "\n")
+      }
+    }
+    Left(output.toString)
   }
 
-  def revertCmd(version : String) : Either[String, String] = {
-    Right("revert is not implemented yet")
+  def commitCmd(message : String) : Either[String, String] = {
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        if (branch.currentVersion != version.version) 
+          OUTDATED_VERSION(branch, version)
+        else {
+          versionary.createNewVersion(branch, Some(login), Importance.COMMIT, message, version.directory,
+            version.version, version.masterVersion, Timestamp.now, true) match 
+          {
+            case Left((newbranch, newversion)) => Left("Committed version " + newversion.version + ".")
+            case Right(updatedbranch) => OUTDATED_VERSION(updatedbranch, version)
+          }
+        }
+    }
+  }
+
+  def revertCmd(_version : String) : Either[String, String] = {
+    val version = _version.toInt
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, currentPathVersion)) =>
+        if (branch.currentVersion != currentPathVersion.version)
+          OUTDATED_VERSION(branch, currentPathVersion)
+        else {
+          val v = if (version > 0) version else currentPathVersion.version + version
+          loadVersion(currentPath.setVersion(v)) match {
+            case None => Right("No such version found.")
+            case Some((foundBranch, foundVersion)) =>
+              val commitMessage = "Revert to version " + foundVersion.version + "."
+              versionary.createNewVersion(foundBranch, Some(login), Importance.AUTOMATIC, commitMessage,
+                foundVersion.directory, foundVersion.parentVersion, foundVersion.masterVersion, 
+                Timestamp.now, true) match 
+              {
+                case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, currentPathVersion)
+                case Left((newbranch, newversion)) => Left("Reverted to version " + foundVersion.version + ".") 
+              }
+          }
+        }
+    }
   }
 
   def pullCmd() : Either[String, String] = {
@@ -377,10 +454,6 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
 
   def resolveCmd(path : String, chooseMaster : Boolean) : Either[String, String] = {
     Right("resolve is not implemented yet")
-  }
-
-  def commitCmd(message : String) : Either[String, String] = {
-    Right("commit is not implemented yet")
   }
 
 }

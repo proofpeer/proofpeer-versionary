@@ -188,6 +188,18 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
       case Some(branch) => Path(Some(branch.setVersion(version)), path)
     }
   }
+  def domain : Option[String] = {
+    branch match {
+      case None => None
+      case Some(branchspec) => branchspec.domain
+    }
+  }
+  def version : Option[Int] = {
+    branch match {
+      case None => None
+      case Some(branchspec) => branchspec.version
+    }
+  }
 }
 
 object Path {
