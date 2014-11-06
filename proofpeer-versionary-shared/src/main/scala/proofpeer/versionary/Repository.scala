@@ -57,7 +57,7 @@ trait ContentType {
   def toBytes(content : Any) : Bytes
   def countConflicts(content : Any) : Int
   def merge2way(content1 : Any, content2 : Any) : Option[Any]
-  def merge3way(content1 : Any, content2 : Any) : Option[Any]
+  def merge3way(original : Any, content1 : Any, content2 : Any) : Option[Any]
 }
 
 object Repository {
