@@ -52,6 +52,11 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
+  def loadVersion(branch : String, version : Int) : Option[(Branch, Version)] = {
+    val path = Path(Some(BranchSpec(Some(branch), Some(version), Some(domain))), new FilePath(true, Vector()))
+    loadVersion(path)
+  }
+
   def loadPath(path : Path) : Option[(Branch, Version, Option[(ValuePointer, Path)])] = {
     loadVersion(path) match {
       case None => None
@@ -428,7 +433,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
           OUTDATED_VERSION(branch, currentPathVersion)
         else {
           val v = if (version > 0) version else currentPathVersion.version + version
-          loadVersion(currentPath.setVersion(v)) match {
+          loadVersion(branch.name, v) match {
             case None => Right("No such version found.")
             case Some((foundBranch, foundVersion)) =>
               val commitMessage = "Revert to version " + foundVersion.version + "."
@@ -444,16 +449,150 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
     }
   }
 
+  def findCommonAncestorVersion(branch : String, version1 : Int, version2 : Int) : Version = {
+    def loadv(v : Int) : Version = {
+      versionary.lookupVersion(branch, v) match {
+        case None => throw new RuntimeException("cannot load version '" + branch + ":" + v + "'")
+        case Some(version) => version
+      }
+    }
+    var v1 : Version = loadv(version1)
+    var v2 : Version = loadv(version2)
+    while (v1.version != v2.version) {
+      if (v1.version > v2.version) 
+        v1 = loadv(v1.parentVersion)
+      else
+        v2 = loadv(v2.parentVersion)
+    }
+    v1
+  }
+
   def pullCmd() : Either[String, String] = {
-    Right("pull is not implemented yet")
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        if (branch.currentVersion != version.version)
+          OUTDATED_VERSION(branch, version)
+        else if (!branch.master.isDefined) 
+          Right("Branch has no master branch.")
+        else if (version.directory.countConflicts > 0)
+          Right("There are conflicts in the topic branch, please resolve them first.")
+        else
+          loadVersion(branch.master.get, 0) match {
+            case None => Right("Master branch not found.")
+            case Some((masterBranch, currentMasterVersion)) =>
+              if (currentMasterVersion.directory.countConflicts > 0)
+                Right("There are conflicts in the master branch, please resolve them first.")
+              else {
+                val ancestorVersion = findCommonAncestorVersion(masterBranch.name, 
+                  currentMasterVersion.version, version.masterVersion)
+                val merge = new Merge(versionary.repository)
+                val directory = merge.merge3way(ancestorVersion.directory, currentMasterVersion.directory, 
+                  version.directory).asInstanceOf[DirectoryPointer]
+                if (directory == version.directory && version.masterVersion == currentMasterVersion.version) 
+                  Left("Branch is already up-to-date.")
+                else {
+                  val commitMessage = "Pulled from master '" + currentMasterVersion + "'."
+                  versionary.createNewVersion(branch, Some(login), Importance.PULL, commitMessage,
+                    directory, version.version, currentMasterVersion.version, Timestamp.now, true) match 
+                  {
+                    case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                    case Left((newbranch, newversion)) =>
+                      if (newversion.directory.countConflicts > 0)
+                        Left("Pull from master '" + currentMasterVersion + "' resulted in conflicts.")
+                      else
+                        Left("Successfully pulled from master '" + currentMasterVersion + "'.")
+                  }
+                }
+              }
+          }
+    }
   }
 
   def syncCmd() : Either[String, String] = {
-    Right("sync is not implemented yet")
+    loadVersion(currentPath) match {
+      case None => INVALID_PATH
+      case Some((branch, version)) =>
+        if (branch.currentVersion != version.version)
+          OUTDATED_VERSION(branch, version)
+        else if (!branch.master.isDefined) 
+          Right("Branch has no master branch.")
+        else if (version.directory.countConflicts > 0)
+          Right("There are conflicts in the topic branch, please resolve them first.")
+        else
+          loadVersion(branch.master.get, 0) match {
+            case None => Right("Master branch not found.")
+            case Some((masterBranch, currentMasterVersion)) =>
+              if (currentMasterVersion.directory.countConflicts > 0)
+                Right("There are conflicts in the master branch, please resolve them first.")
+              else {
+                val ancestorVersion = findCommonAncestorVersion(masterBranch.name, 
+                  currentMasterVersion.version, version.masterVersion)
+                val merge = new Merge(versionary.repository)
+                val directory = merge.merge3way(ancestorVersion.directory, currentMasterVersion.directory, 
+                  version.directory).asInstanceOf[DirectoryPointer]
+                if (directory == version.directory && version.masterVersion == currentMasterVersion.version &&
+                    directory == currentMasterVersion.directory)
+                  Left("Branch is already synchronized.")
+                else if (directory.countConflicts > 0) 
+                  Right("Synchronizing produces conflicts, please pull and resolve them first.")
+                else {
+                  val commitMessageMaster = "Synced with topic '" + version + "'."
+                  val commitMessageTopic = "Synced with master '" + currentMasterVersion + "'."
+                  val now = Timestamp.now
+                  versionary.createNewVersion(masterBranch, Some(login), Importance.SYNC, commitMessageMaster,
+                    directory, currentMasterVersion.version, currentMasterVersion.masterVersion,
+                    now, true) match 
+                  {
+                    case Right(updatedMasterBranch) => OUTDATED_VERSION(updatedMasterBranch, currentMasterVersion)
+                    case Left((newmasterbranch, newmasterversion)) =>
+                      versionary.createNewVersion(branch, Some(login), Importance.SYNC, commitMessageTopic,
+                        directory, version.version, newmasterversion.version, now, true) match 
+                      {
+                        case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                        case Left((newbranch, newversion)) => Left("Successfully synchronized with master branch.")
+                      }                    
+                  }
+                }
+              }
+          }
+    }
   }
 
   def resolveCmd(path : String, chooseMaster : Boolean) : Either[String, String] = {
-    Right("resolve is not implemented yet")
+    resolvePath(path) match {
+      case None => INVALID_PATH
+      case Some((branch, version, pointer, path)) =>
+        if (branch.currentVersion != version.version) 
+          OUTDATED_VERSION(branch, version)
+        else pointer match {
+          case conflictPointer : ConflictPointer =>
+            val chosenPointer = 
+              if (chooseMaster) conflictPointer.master else conflictPointer.topic
+            val r = versionary.repository
+            val directory = r.loadDirectory(version.directory)
+            val result =
+              chosenPointer match {
+                case None =>
+                  r.rm(directory, path.path.path.toList) 
+                case Some(chosenPointer) =>
+                  r.set(directory, path.path.path.toList, chosenPointer)
+              } 
+            result match {
+              case None => Right("Error resolving conflict.")
+              case Some((filepath, updatedDirectory)) =>
+                val chosen = if (chooseMaster) "MASTER" else "TOPIC"
+                val commitMessage = "Resolved conflict " + path + " in favour of " + chosen + "."
+                versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, commitMessage,
+                  updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
+                {
+                  case Left((newbranch, newversion)) => Left(commitMessage)
+                  case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                }
+            }               
+          case _ => Right("Path does not designate a conflict.")
+        }
+    }
   }
 
 }

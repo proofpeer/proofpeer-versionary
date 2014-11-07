@@ -88,6 +88,8 @@ class Merge(repository : Repository) {
 
   def merge3way(originalPointer : ValuePointer, masterPointer : ValuePointer, topicPointer : ValuePointer) : ValuePointer = {
     if (masterPointer == topicPointer) return masterPointer
+    if (originalPointer == masterPointer) return topicPointer
+    if (originalPointer == topicPointer) return masterPointer
     (originalPointer, masterPointer, topicPointer) match {
       case (originalPointer : DirectoryPointer, masterPointer : DirectoryPointer, topicPointer : DirectoryPointer) =>
         val original = repository.loadDirectory(originalPointer)

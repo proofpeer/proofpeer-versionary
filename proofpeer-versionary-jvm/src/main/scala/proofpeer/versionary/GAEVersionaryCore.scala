@@ -107,7 +107,7 @@ class GAEVersionaryCore(val repository : Repository, branchKind : String, versio
           vprop("branch", nbranch)
           vprop("version", version)
           vprop("login", if (login.isDefined) login.get else null)
-          val importance = Importance.AUTOMATIC
+          val importance = Importance.PULL
           vprop("importance", importance)
           val comment = "Initial version of branch."
           vprop("comment", comment)

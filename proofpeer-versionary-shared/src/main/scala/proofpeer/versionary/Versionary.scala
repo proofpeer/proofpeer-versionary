@@ -55,6 +55,8 @@ trait Version {
   /** True if this version is enabled, false if it is disabled. Versions cannot be deleted, but they can be disabled. */
   def isEnabled : Boolean
 
+  override def toString : String = branch + ":" + version
+
 }
 
 trait Branch {
