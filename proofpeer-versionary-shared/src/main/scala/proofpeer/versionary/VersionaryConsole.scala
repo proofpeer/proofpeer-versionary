@@ -13,7 +13,7 @@ object VersionaryConsole {
   }
 }
 
-class VersionaryConsole(versionary : Versionary, login : String, currentPath : Path, domain : String) {
+class VersionaryConsole(versionary : Versionary, login : Option[String], currentPath : Path, domain : String) {
 
   def INVALID_PATH[S] : Either[S, String] = Right("Invalid path.")
 
@@ -196,7 +196,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                 case None => INVALID_PATH
                 case Some((createdFilePath, createdDirectory)) =>
                   val comment = "Created directory '" + FilePath(true, createdFilePath.toVector) + "'."
-                  versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment, 
+                  versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment, 
                     createdDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
                   {
                     case Left((newBranch, newVersion)) =>
@@ -226,7 +226,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
             case None => Right("Cannot delete toplevel directory.")
             case Some((deletedFilePath, updatedDirectory)) =>
               val comment = "Deleted '" + FilePath(true, deletedFilePath.toVector) + "'."
-              versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment,
+              versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment,
                 updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
               {
                 case Left((newBranch, newVersion)) =>
@@ -256,7 +256,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                     case None => Right("Invalid destination directory.")
                     case Some((filePath, updatedDirectory)) =>
                       val comment = "Copied '" + sourcePath + "' to '" + FilePath(true, filePath.toVector) + "'."
-                      versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, comment,
+                      versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment,
                         updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
                       {
                         case Left((newBranch, newVersion)) =>
@@ -371,7 +371,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
       case None => INVALID_PATH
       case Some((branch, version)) =>
         val master = Some((branch.name, version.version))
-        versionary.createNewBranch(branchname, master, true, Some(login), version.directory) match {
+        versionary.createNewBranch(branchname, master, true, login, version.directory) match {
           case Left((newbranch, newversion)) =>
             val branchspec = BranchSpec(Some(newbranch.name), None, currentPath.domain)
             val newpath = Path(Some(branchspec), currentPath.path)
@@ -387,7 +387,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
   def branchesCmd(loginOfOwner : Option[String]) : Either[String, String] = {
     val owner = 
       loginOfOwner match {
-        case None => login
+        case None => login.get
         case Some(loginOfOwner) => loginOfOwner
       }
     val branchnames = versionary.branchesOfLogin(owner)
@@ -414,7 +414,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
         if (branch.currentVersion != version.version) 
           OUTDATED_VERSION(branch, version)
         else {
-          versionary.createNewVersion(branch, Some(login), Importance.COMMIT, message, version.directory,
+          versionary.createNewVersion(branch, login, Importance.COMMIT, message, version.directory,
             version.version, version.masterVersion, Timestamp.now, true) match 
           {
             case Left((newbranch, newversion)) => Left("Committed version " + newversion.version + ".")
@@ -437,7 +437,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
             case None => Right("No such version found.")
             case Some((foundBranch, foundVersion)) =>
               val commitMessage = "Revert to version " + foundVersion.version + "."
-              versionary.createNewVersion(foundBranch, Some(login), Importance.AUTOMATIC, commitMessage,
+              versionary.createNewVersion(foundBranch, login, Importance.AUTOMATIC, commitMessage,
                 foundVersion.directory, foundVersion.parentVersion, foundVersion.masterVersion, 
                 Timestamp.now, true) match 
               {
@@ -493,7 +493,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                   Left("Branch is already up-to-date.")
                 else {
                   val commitMessage = "Pulled from master '" + currentMasterVersion + "'."
-                  versionary.createNewVersion(branch, Some(login), Importance.PULL, commitMessage,
+                  versionary.createNewVersion(branch, login, Importance.PULL, commitMessage,
                     directory, version.version, currentMasterVersion.version, Timestamp.now, true) match 
                   {
                     case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
@@ -540,13 +540,13 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                   val commitMessageMaster = "Synced with topic '" + version + "'."
                   val commitMessageTopic = "Synced with master '" + currentMasterVersion + "'."
                   val now = Timestamp.now
-                  versionary.createNewVersion(masterBranch, Some(login), Importance.SYNC, commitMessageMaster,
+                  versionary.createNewVersion(masterBranch, login, Importance.SYNC, commitMessageMaster,
                     directory, currentMasterVersion.version, currentMasterVersion.masterVersion,
                     now, true) match 
                   {
                     case Right(updatedMasterBranch) => OUTDATED_VERSION(updatedMasterBranch, currentMasterVersion)
                     case Left((newmasterbranch, newmasterversion)) =>
-                      versionary.createNewVersion(branch, Some(login), Importance.SYNC, commitMessageTopic,
+                      versionary.createNewVersion(branch, login, Importance.SYNC, commitMessageTopic,
                         directory, version.version, newmasterversion.version, now, true) match 
                       {
                         case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
@@ -583,7 +583,7 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
               case Some((filepath, updatedDirectory)) =>
                 val chosen = if (chooseMaster) "MASTER" else "TOPIC"
                 val commitMessage = "Resolved conflict " + path + " in favour of " + chosen + "."
-                versionary.createNewVersion(branch, Some(login), Importance.AUTOMATIC, commitMessage,
+                versionary.createNewVersion(branch, login, Importance.AUTOMATIC, commitMessage,
                   updatedDirectory.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
                 {
                   case Left((newbranch, newversion)) => Left(commitMessage)
@@ -591,6 +591,70 @@ class VersionaryConsole(versionary : Versionary, login : String, currentPath : P
                 }
             }               
           case _ => Right("Path does not designate a conflict.")
+        }
+    }
+  }
+
+  private def extractTheoryName(path : FilePath) : Option[String] = {
+    val ids = path.path
+    if (ids.size == 0) return None
+    val id = ids(ids.size - 1)
+    if (!id.endsWith(".thy") || id.size == 4) return None
+    val theoryname = id.substring(0, id.size - 4)
+    Some((ids.take(ids.size - 1) :+ theoryname).mkString("\\"))
+  }
+
+  private def createNewTheoryContent(theoryname : String) : Content = {
+    val content = "theory " + theoryname + "\nextends \\root\n"
+    versionary.repository.createContent(ContentTypes.PROOFSCRIPT, content)
+  }
+
+  def newTheoryCmd(path : String) : Either[String, String] = {
+    resolve(path) match {
+      case None => INVALID_PATH
+      case Some(path) =>
+        extractTheoryName(path.path) match {
+          case None => INVALID_PATH
+          case Some(theoryname) =>
+            loadPath(path) match {
+              case Some((branch, version, None)) => 
+                if (version.version != branch.currentVersion)
+                  OUTDATED_VERSION(branch, version)
+                else {
+                  val r = versionary.repository
+                  val content = createNewTheoryContent(theoryname)
+                  r.set(r.loadDirectory(version.directory), path.path.path.toList, content.pointer) match {
+                    case None => INVALID_PATH
+                    case Some((createdFilePath, createdFile)) =>
+                      val comment = "Created theory '" + FilePath(true, createdFilePath.toVector) + "'."
+                      versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment, 
+                        createdFile.pointer, version.version, version.masterVersion, Timestamp.now, true) match 
+                      {
+                        case Left((newBranch, newVersion)) =>
+                          val newPath = path.removeVersion
+                          val output = "Created theory '" + newPath + "'."
+                          Left(output) 
+                        case Right(updatedBranch) => OUTDATED_VERSION(updatedBranch, version)
+                      }
+                  }
+                }
+              case Some(_) =>
+                Right("The theory already exists.")
+              case None => INVALID_PATH
+            }            
+        }
+    }
+  }
+
+  def readTheory(path : String) : Option[(Int, String, String)] = {
+    resolvePath(path) match {
+      case None => None
+      case Some((branch, version, valuepointer, path)) =>
+        valuepointer match {
+          case pointer: ContentPointer if pointer.contentTypeId == ContentTypes.PROOFSCRIPT =>
+            val content = versionary.repository.loadContent(pointer).get.asInstanceOf[String]
+            Some((branch.currentVersion, path.toString, content))
+          case _ => None
         }
     }
   }
