@@ -200,6 +200,12 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
       case Some(branchspec) => branchspec.version
     }
   }
+  def branchname : Option[String] = {
+    branch match {
+      case None => None
+      case Some(branchspec) => branchspec.name
+    }
+  }
 }
 
 object Path {
