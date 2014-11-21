@@ -363,7 +363,7 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
   }
 
   def branchCmd(id : Option[String]) : Either[(String, String), String] = {
-    val branchname = login + "\\" + (id match {
+    val branchname = login.get + "\\" + (id match {
       case None => "b" + Timestamp.now.toMillis.toString
       case Some(id) => id
     })
