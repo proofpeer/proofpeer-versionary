@@ -147,7 +147,7 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
   def setVersion(version : Int) : BranchSpec = BranchSpec(name, Some(version), domain)
 }
 
-case class Path(branch : Option[BranchSpec], path : FilePath) {
+class Path(val branch : Option[BranchSpec], val path : FilePath) {
   override def toString : String = {
     branch match {
       case None =>
@@ -206,6 +206,14 @@ case class Path(branch : Option[BranchSpec], path : FilePath) {
       case Some(branchspec) => branchspec.name
     }
   }
+  private def rep : String = this.toString.toLowerCase
+  override def hashCode() : Int = rep.hashCode
+  override def equals(that : Any) : Boolean = {
+    that match {
+      case that : Path => rep.equals(that.rep)
+      case _ => false
+    }
+  }
 }
 
 object Path {
@@ -214,5 +222,8 @@ object Path {
       case None => throw new RuntimeException("invalid path: " + path)
       case Some(p) => p
     }
+  }
+  def apply(branch : Option[BranchSpec], path : FilePath) : Path = {
+    new Path(branch, path)
   }
 }
