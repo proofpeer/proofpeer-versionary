@@ -87,6 +87,11 @@ case class FilePath(val absolute : Boolean, val path : Vector[String]) {
     }
   }
 
+  def up : Option[FilePath] = {
+    if (path.isEmpty) None 
+    else Some(FilePath(absolute, path.take(path.size - 1)))
+  }
+
 }
 
 object FilePath {
@@ -148,6 +153,12 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
 }
 
 class Path(val branch : Option[BranchSpec], val path : FilePath) {
+  def up : Option[Path] = {
+    path.up match {
+      case None => None
+      case Some(path) => Some(new Path(branch, path))
+    }
+  }
   override def toString : String = {
     branch match {
       case None =>
@@ -206,6 +217,7 @@ class Path(val branch : Option[BranchSpec], val path : FilePath) {
       case Some(branchspec) => branchspec.name
     }
   }
+  def pathnames : List[String] = path.path.toList
   private def rep : String = this.toString.toLowerCase
   override def hashCode() : Int = rep.hashCode
   override def equals(that : Any) : Boolean = {

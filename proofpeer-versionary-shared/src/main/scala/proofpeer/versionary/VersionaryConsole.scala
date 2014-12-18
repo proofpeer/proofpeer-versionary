@@ -467,6 +467,18 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
     v1
   }
 
+  def isAncestorVersion(branch : String, versionAncestor : Int, versionDescendant : Int) : Boolean = {
+    def loadv(v : Int) : Version = {
+      versionary.lookupVersion(branch, v) match {
+        case None => throw new RuntimeException("cannot load version '" + branch + ":" + v + "'")
+        case Some(version) => version
+      }
+    }
+    var v = versionDescendant
+    while (v > versionAncestor) v = loadv(v).parentVersion
+    v == versionAncestor
+  }
+
   def pullCmd() : Either[String, String] = {
     loadVersion(currentPath) match {
       case None => INVALID_PATH
@@ -655,6 +667,93 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
             val content = versionary.repository.loadContent(pointer).get.asInstanceOf[String]
             Some((branch.currentVersion, path.toString, content))
           case _ => None
+        }
+    }
+  }
+
+  private def overwriteTheoryInNewBranch(branch : Branch, version : Version, path : Path, newContent : Any) : Either[String, String] = 
+  {
+    val newBranchname = login.get + "\\b" + Timestamp.now.toMillis.toString
+    val repo = versionary.repository
+    val newPointer = repo.createContent(ContentTypes.PROOFSCRIPT, newContent).pointer            
+    val directory = repo.loadDirectory(version.directory)
+    repo.set(directory, path.pathnames, newPointer) match 
+    {
+      case None => throw new RuntimeException("Internal error in overwriteInNewBranch, cannot set path '" + path + "'.")
+      case Some((_, directory)) => 
+        //val comment = "Saved theory '" + path.path + "'."
+        versionary.createNewBranch(newBranchname, Some((branch.name, version.version)), false, login, directory.pointer) match 
+        {
+          case Right(branch) => throw new RuntimeException("Internal error in overwriteInNewBranch, new branch already exists.")
+          case Left((branch, newVersion)) => 
+            val newBranchspec = BranchSpec(Some(branch.name), Some(newVersion.version), path.domain)
+            val newPath = Path(Some(newBranchspec), path.path)
+            Left(newPath.toString)
+        }
+    }
+  }
+
+  private def overwriteTheoryInOldBranch(branch : Branch, currentVersion : Version, currentPointer : ValuePointer, path : Path, newContent : Any) : Either[String, String] =
+  {
+    if (branch.currentVersion != currentVersion.version) throw new RuntimeException("Internal error in overwriteInOldBranch, version is not current.")
+    val repo = versionary.repository
+    val newPointer = repo.createContent(ContentTypes.PROOFSCRIPT, newContent).pointer            
+    if (currentPointer == newPointer) return Left(path.setVersion(branch.currentVersion).toString)
+    val directory = repo.loadDirectory(currentVersion.directory)
+    repo.set(directory, path.pathnames, newPointer) match 
+    {
+      case None => throw new RuntimeException("Internal error in overwriteInOldBranch, cannot set path '" + path + "'.")
+      case Some((_, directory)) => 
+        val comment = "Saved theory '" + path.path + "'."
+        versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment, directory.pointer, 
+          currentVersion.version, currentVersion.masterVersion, Timestamp.now, true) match 
+        {
+          case Right(branch) => OUTDATED_VERSION(branch, currentVersion)
+          case Left((branch, newVersion)) => Left(path.setVersion(newVersion.version).toString)
+        }
+    }
+  }
+
+  def writeTheory(path : String, content : String) : Either[String, String] = {
+    resolvePath(path) match {
+      case None => INVALID_PATH
+      case Some((branch, version, valuepointer, path)) =>
+        valuepointer match {
+          case pointer: ContentPointer if pointer.contentTypeId == ContentTypes.PROOFSCRIPT =>
+            if (branch.currentVersion == version.version) 
+              overwriteTheoryInOldBranch(branch, version, valuepointer, path, content)
+            else if (!isAncestorVersion(branch.name, version.version, branch.currentVersion)) 
+              overwriteTheoryInNewBranch(branch, version, path, content)
+            else {
+              loadPath(path.setVersion(branch.currentVersion)) match {
+                case Some((_, currentVersion, Some((currentValuepointer : ContentPointer, currentPath)))) 
+                  if currentValuepointer.contentTypeId == ContentTypes.PROOFSCRIPT =>
+                  if (currentValuepointer == valuepointer) 
+                    overwriteTheoryInOldBranch(branch, currentVersion, currentValuepointer, currentPath, content)
+                  else {
+                    val repo = versionary.repository
+                    val originalContent = repo.loadContent(pointer)
+                    val currentContent = repo.loadContent(currentValuepointer)
+                    val ct = ContentTypes.contentTypeOf(ContentTypes.PROOFSCRIPT)
+                    val numConflicts = ct.countConflicts(originalContent) + ct.countConflicts(currentContent) + ct.countConflicts(content)
+                    var merged : Any = null
+                    if (numConflicts == 0) {
+                      ct.merge3way(originalContent, currentContent, content) match {
+                        case Some(mergedContent) if ct.countConflicts(mergedContent) == 0 =>
+                          merged = mergedContent
+                        case _ =>
+                      }
+                    }
+                    if (merged == null)
+                      overwriteTheoryInNewBranch(branch, version, path, content)
+                    else
+                      overwriteTheoryInOldBranch(branch, currentVersion, currentValuepointer, currentPath, merged)
+                  }
+                case _ =>
+                  overwriteTheoryInNewBranch(branch, version, path, content)
+              }
+            } 
+          case _ => Right("File '" + path.path + "' is not a theory.")
         }
     }
   }
