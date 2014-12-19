@@ -671,8 +671,9 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
     }
   }
 
-  private def overwriteTheoryInNewBranch(branch : Branch, version : Version, path : Path, newContent : Any) : Either[String, String] = 
+  private def overwriteTheoryInNewBranch(mayCreateNewBranch : Boolean, branch : Branch, version : Version, path : Path, newContent : Any) : Either[Option[String], String] = 
   {
+    if (!mayCreateNewBranch) return Left(None)
     val newBranchname = login.get + "\\b" + Timestamp.now.toMillis.toString
     val repo = versionary.repository
     val newPointer = repo.createContent(ContentTypes.PROOFSCRIPT, newContent).pointer            
@@ -681,24 +682,23 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
     {
       case None => throw new RuntimeException("Internal error in overwriteInNewBranch, cannot set path '" + path + "'.")
       case Some((_, directory)) => 
-        //val comment = "Saved theory '" + path.path + "'."
         versionary.createNewBranch(newBranchname, Some((branch.name, version.version)), false, login, directory.pointer) match 
         {
           case Right(branch) => throw new RuntimeException("Internal error in overwriteInNewBranch, new branch already exists.")
           case Left((branch, newVersion)) => 
             val newBranchspec = BranchSpec(Some(branch.name), Some(newVersion.version), path.domain)
             val newPath = Path(Some(newBranchspec), path.path)
-            Left(newPath.toString)
+            Left(Some(newPath.toString))
         }
     }
   }
 
-  private def overwriteTheoryInOldBranch(branch : Branch, currentVersion : Version, currentPointer : ValuePointer, path : Path, newContent : Any) : Either[String, String] =
+  private def overwriteTheoryInOldBranch(branch : Branch, currentVersion : Version, currentPointer : ValuePointer, path : Path, newContent : Any) : Either[Option[String], String] =
   {
     if (branch.currentVersion != currentVersion.version) throw new RuntimeException("Internal error in overwriteInOldBranch, version is not current.")
     val repo = versionary.repository
     val newPointer = repo.createContent(ContentTypes.PROOFSCRIPT, newContent).pointer            
-    if (currentPointer == newPointer) return Left(path.setVersion(branch.currentVersion).toString)
+    if (currentPointer == newPointer) return Left(Some(path.setVersion(branch.currentVersion).toString))
     val directory = repo.loadDirectory(currentVersion.directory)
     repo.set(directory, path.pathnames, newPointer) match 
     {
@@ -708,13 +708,13 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
         versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment, directory.pointer, 
           currentVersion.version, currentVersion.masterVersion, Timestamp.now, true) match 
         {
-          case Right(branch) => OUTDATED_VERSION(branch, currentVersion)
-          case Left((branch, newVersion)) => Left(path.setVersion(newVersion.version).toString)
+          case Right(branch) => throw new RuntimeException("Branch locking mechanism needed.")
+          case Left((branch, newVersion)) => Left(Some(path.setVersion(newVersion.version).toString))
         }
     }
   }
 
-  def writeTheory(path : String, content : String) : Either[String, String] = {
+  def writeTheory(path : String, content : String, mayCreateNewBranch : Boolean) : Either[Option[String], String] = {
     resolvePath(path) match {
       case None => INVALID_PATH
       case Some((branch, version, valuepointer, path)) =>
@@ -723,7 +723,7 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
             if (branch.currentVersion == version.version) 
               overwriteTheoryInOldBranch(branch, version, valuepointer, path, content)
             else if (!isAncestorVersion(branch.name, version.version, branch.currentVersion)) 
-              overwriteTheoryInNewBranch(branch, version, path, content)
+              overwriteTheoryInNewBranch(mayCreateNewBranch, branch, version, path, content)
             else {
               loadPath(path.setVersion(branch.currentVersion)) match {
                 case Some((_, currentVersion, Some((currentValuepointer : ContentPointer, currentPath)))) 
@@ -745,12 +745,12 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
                       }
                     }
                     if (merged == null)
-                      overwriteTheoryInNewBranch(branch, version, path, content)
+                      overwriteTheoryInNewBranch(mayCreateNewBranch, branch, version, path, content)
                     else
                       overwriteTheoryInOldBranch(branch, currentVersion, currentValuepointer, currentPath, merged)
                   }
                 case _ =>
-                  overwriteTheoryInNewBranch(branch, version, path, content)
+                  overwriteTheoryInNewBranch(mayCreateNewBranch, branch, version, path, content)
               }
             } 
           case _ => Right("File '" + path.path + "' is not a theory.")
