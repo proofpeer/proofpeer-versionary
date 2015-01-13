@@ -612,8 +612,7 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
     if (ids.size == 0) return None
     val id = ids(ids.size - 1)
     if (!id.endsWith(".thy") || id.size == 4) return None
-    val theoryname = id.substring(0, id.size - 4)
-    Some((ids.take(ids.size - 1) :+ theoryname).mkString("\\"))
+    Some(id.substring(0, id.size - 4))
   }
 
   private def createNewTheoryContent(theoryname : String) : Content = {
