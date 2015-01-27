@@ -92,6 +92,10 @@ case class FilePath(val absolute : Boolean, val path : Vector[String]) {
     else Some(FilePath(absolute, path.take(path.size - 1)))
   }
 
+  def down(name : String) : FilePath = {
+    FilePath(absolute, path :+ name)
+  }
+
 }
 
 object FilePath {

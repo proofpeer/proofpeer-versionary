@@ -11,9 +11,10 @@ object VersionaryConsole {
         else Left(cp)
     }
   }
+
 }
 
-class VersionaryConsole(versionary : Versionary, login : Option[String], currentPath : Path, domain : String) {
+class VersionaryConsole(val versionary : Versionary, login : Option[String], currentPath : Path, domain : String) {
 
   def INVALID_PATH[S] : Either[S, String] = Right("Invalid path.")
 
@@ -101,6 +102,46 @@ class VersionaryConsole(versionary : Versionary, login : Option[String], current
     }
     output.toString()
   }
+
+  def listProofscriptTheories(filepaths : Seq[String]) : Either[(DirectoryPointer, List[FilePath]), String] = {
+    loadVersion(currentPath) match {
+      case None => Right("no such branch or version")
+      case Some((branch, version)) => 
+        val currentFilePath = currentPath.path
+        val repo = versionary.repository
+        var theories : List[FilePath] = List()
+        def listThem(path : FilePath, valuepointer : ValuePointer) {
+          valuepointer match {
+            case pointer : ContentPointer if pointer.kind == ContentTypes.PROOFSCRIPT =>
+              theories = path :: theories
+            case pointer : DirectoryPointer => 
+              val entries = repo.loadDirectory(pointer).entries
+              for (i <- 0 until entries.size) {
+                val (name, pointer) = entries(i)
+                listThem(path.down(name), pointer)
+              }
+            case _ =>
+          }
+        }
+        for (filepath <- filepaths) {
+          PathGrammar.parseFilePath(filepath) match {
+            case None => return Right("'" + filepath + "' is an invalid filename")
+            case Some(filepath) =>
+              filepath.resolve(currentFilePath) match {
+                case None => return Right("cannot resolve filename '" + filepath + "'")
+                case Some(filepath) =>
+                  repo.lookupPointer(version.directory, filepath.path) match {          
+                    case None => return Right("no such file: '" + filepath + "'")
+                    case Some((_, valuepointer)) => 
+                      listThem(filepath, valuepointer)
+                  }        
+              }
+          }
+        }
+        Left((version.directory, theories))
+    }
+  }
+
 
   def lsCmd(path : String) : Either[String, String] = {
     val separator = ":\n\n"
