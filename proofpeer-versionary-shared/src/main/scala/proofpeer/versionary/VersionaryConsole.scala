@@ -103,7 +103,7 @@ class VersionaryConsole(val versionary : Versionary, login : Option[String], cur
     output.toString()
   }
 
-  def listProofscriptTheories(filepaths : Seq[String]) : Either[(DirectoryPointer, List[FilePath]), String] = {
+  def listProofscriptTheories(filepaths : Seq[String]) : Either[(Branch, Version, List[FilePath]), String] = {
     loadVersion(currentPath) match {
       case None => Right("no such branch or version")
       case Some((branch, version)) => 
@@ -138,7 +138,7 @@ class VersionaryConsole(val versionary : Versionary, login : Option[String], cur
               }
           }
         }
-        Left((version.directory, theories))
+        Left((branch, version, theories))
     }
   }
 
@@ -340,7 +340,12 @@ class VersionaryConsole(val versionary : Versionary, login : Option[String], cur
   }
 
   def describeVersion(version : Version) : String = {
-    val info = "(" + describeImportance(version.importance) + ", " + version.timestamp + ")"
+    val peer = 
+      version.login match {
+        case None => ""
+        case Some(peer) => " by " + peer
+      } 
+    val info = "(" + describeImportance(version.importance) + ", " + version.timestamp + peer + ")"
     "Version " + version.version + " " + info + ": " + version.comment 
   }
 
