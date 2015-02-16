@@ -143,17 +143,24 @@ case class BranchSpec(name : Option[String], version : Option[Int], domain : Opt
   }
   def resolve(reference : BranchSpec) : BranchSpec = {
     val n = if (name.isDefined) name else reference.name
-    val v = if (version.isDefined) version else reference.version
+    val iv = versionAsInt
+    val v = 
+      if (iv <= 0) {
+        val v = reference.versionAsInt + iv
+        if (v == 0) None else Some(v)
+      } else version
     val d = if (domain.isDefined) domain else reference.domain
     BranchSpec(n, v, d)
   }
-  def versionIsRelative : Boolean = 
-    version match {
-      case None => true
-      case Some(v) => v <= 0
-    }
+  def versionIsRelative : Boolean = versionAsInt <= 0
   def removeVersion : BranchSpec = BranchSpec(name, None, domain)
   def setVersion(version : Int) : BranchSpec = BranchSpec(name, Some(version), domain)
+  def versionAsInt : Int = {
+    version match {
+      case None => 0
+      case Some(v) => v
+    }
+  }
 }
 
 class Path(val branch : Option[BranchSpec], val path : FilePath) {
@@ -172,7 +179,7 @@ class Path(val branch : Option[BranchSpec], val path : FilePath) {
     }
   }
   def resolve(reference : Path) : Option[Path] = {
-    if (!reference.isResolved) throw new RuntimeException("reference is not resolved")
+    if (!reference.isResolved) throw new RuntimeException("reference is not resolved: " + reference)
     path.resolve(reference.path) match {
       case None => None
       case Some(filepath) =>
@@ -184,7 +191,7 @@ class Path(val branch : Option[BranchSpec], val path : FilePath) {
     if (!path.isResolved || !branch.isDefined) false
     else {
       val b = branch.get
-      b.name.isDefined && b.domain.isDefined && !(b.version.isDefined && b.version.get < 0)
+      b.name.isDefined && b.domain.isDefined// && !(b.version.isDefined && b.version.get < 0)
     }
   }
   def versionIsRelative : Boolean = 
