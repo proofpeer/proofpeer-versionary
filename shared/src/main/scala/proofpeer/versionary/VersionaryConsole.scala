@@ -1,5 +1,7 @@
 package proofpeer.versionary
 
+import proofpeer.general.Bytes
+
 object VersionaryConsole {
 
   def resolveCurrentPath(domain : String, path : String) : Either[Path, String] = {
@@ -800,6 +802,35 @@ class VersionaryConsole(val versionary : Versionary, login : Option[String], cur
             } 
           case _ => Right("File '" + path.path + "' is not a theory.")
         }
+    }
+  }
+
+  def addToArchive(ac : ArchiveCreator, valuepointer : ValuePointer, path : Vector[String]) {
+    val r = versionary.repository
+    valuepointer match {
+      case p : ContentPointer => 
+        ac.addContent(path, r.loadContentBytes(p))
+      case p : DirectoryPointer => 
+        ac.addDirectory(path)
+        for ((name, vp) <- r.loadDirectory(p).entries) {
+          addToArchive(ac, vp, path :+ name)
+        }
+      case _ =>
+    }
+  }
+
+  def makeZipFile(path : String) : Either[(String, Bytes), String] = {
+    resolvePath(path) match {
+      case None => INVALID_PATH
+      case Some((branch, version, valuepointer, path)) =>
+        val lastName : String =
+          path.path.lastName match {
+            case Some(n) => n
+            case None => "ProofPeerRoot"
+          }
+        val ac = new ZipArchiveCreator()
+        addToArchive(ac, valuepointer, Vector(lastName))
+        Left((lastName + ".zip", ac.close()))
     }
   }
 

@@ -89,6 +89,11 @@ trait Repository {
   def loadContent(pointer : ContentPointer) : Content =
     loadValue(pointer).asInstanceOf[Content]
 
+  def loadContentBytes(pointer : ContentPointer) : Bytes = {
+    val content = loadContent(pointer)
+    ContentTypes.contentTypeOf(pointer.contentTypeId).toBytes(content.get)
+  }
+
   def loadConflict(pointer : ConflictPointer) : Conflict = 
     loadValue(pointer).asInstanceOf[Conflict]
 

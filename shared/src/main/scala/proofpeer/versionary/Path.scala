@@ -96,6 +96,10 @@ case class FilePath(val absolute : Boolean, val path : Vector[String]) {
     FilePath(absolute, path :+ name)
   }
 
+  def lastName : Option[String] = {
+    if (path.isEmpty) None else Some(path.last)
+  }
+
 }
 
 object FilePath {
