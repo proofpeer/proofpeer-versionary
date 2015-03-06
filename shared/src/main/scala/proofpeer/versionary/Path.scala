@@ -26,6 +26,7 @@ object PathGrammar {
     rule("RelativeFilePath", "Filename PathSeparator RelativeFilePath",
       connect("Filename", "PathSeparator", "RelativeFilePath"), 
       c =>  c.text("Filename") +: c.RelativeFilePath[Vector[String]]) ++
+    rule("FilenameNonterminal", "Filename", c => ()) ++
     rule("FilePath", "RelativeFilePath", c => FilePath(false, c.RelativeFilePath[Vector[String]])) ++
     rule("FilePath", "PathSeparator RelativeFilePath", Connect("PathSeparator", "RelativeFilePath"), 
       c => FilePath(true, c.RelativeFilePath[Vector[String]])) ++
@@ -49,6 +50,8 @@ object PathGrammar {
   def parseFilePath(filepath : String) : Option[FilePath] = parser.parse("FilePath", filepath)
   def parseBranchSpec(branchspec : String) : Option[BranchSpec] = parser.parse("BranchSpec", branchspec)
   def parsePath(path : String) : Option[Path] = parser.parse("Path", path)
+
+  def isFilename(filename : String) : Boolean = parser.parse[Unit]("FilenameNonterminal", filename).isDefined
 
 }
 

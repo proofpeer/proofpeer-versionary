@@ -834,4 +834,66 @@ class VersionaryConsole(val versionary : Versionary, login : Option[String], cur
     }
   }
 
+  def addFiles(path : String, files : List[(String, Bytes)]) : Either[(Path, List[(String, Int, Int)]), String] = {
+    resolvePath(path) match {
+      case None => INVALID_PATH
+      case Some((branch, version, valuepointer, path)) =>
+        if (branch.currentVersion != version.version) return OUTDATED_VERSION(branch, version)
+        valuepointer match {
+          case dirpointer : DirectoryPointer =>
+            val repo = versionary.repository                    
+            var dir = repo.loadDirectory(dirpointer)   
+            var results : List[(String, Int, Int)] = List()
+            for ((filename, filedata) <- files) {
+              if (filedata == null) {
+                results = (filename, 1, 0) :: results
+              } else if (filename.toLowerCase.endsWith(".zip")) {
+                val extractor = new ZipArchiveExtractor(repo, filedata)
+                var count : Int = 0
+                var countSuccesses : Int = 0
+                extractor.listFilesAndDirectories((path : Seq[String], filedata : Option[Bytes]) => {
+                  filedata match {
+                    case None => 
+                      repo.addDirectory(dir, path.toList) match {
+                        case None => 
+                        case Some((_, newdir)) => dir = newdir
+                      }
+                    case Some(filedata) =>
+                      count += 1
+                      repo.addFile(dir, path.toList, filedata) match {
+                        case None =>
+                        case Some((_, newdir)) => 
+                          countSuccesses += 1
+                          dir = newdir
+                      }
+                  }
+                })
+                results = (filename, count, countSuccesses) :: results
+              } else {
+                repo.addFile(dir, List(filename), filedata) match {
+                  case None =>
+                    results = (filename, 1, 0) :: results
+                  case Some((_, newdir)) =>
+                    results = (filename, 1, 1) :: results
+                    dir = newdir
+                }
+              }
+            }
+            val (c, cS) = results.foldLeft((0, 0)) { (a : (Int, Int), r : (String, Int, Int)) => (a._1 + r._2, a._2 + r._3) }
+            val comment = 
+              if (c != cS)
+                "Uploaded "+ cS + " out of " + c + " individual files."
+              else 
+                "Uploaded " + c + " individual files."
+            versionary.createNewVersion(branch, login, Importance.AUTOMATIC, comment, dir.pointer, 
+              version.version, version.masterVersion, Timestamp.now, true) match 
+            {
+              case Right(branch) => OUTDATED_VERSION(branch, version)
+              case Left((branch, newVersion)) => Left((path.setVersion(newVersion.version), results))
+            }
+          case _ => INVALID_PATH
+        }
+    }
+  }
+
 }

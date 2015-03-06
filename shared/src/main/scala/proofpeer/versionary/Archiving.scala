@@ -3,6 +3,7 @@ package proofpeer.versionary
 import java.util.zip._
 import java.io._
 import proofpeer.general.Bytes
+import proofpeer.general.StringUtils
 
 trait ArchiveCreator {
 
@@ -11,6 +12,12 @@ trait ArchiveCreator {
   def addDirectory(path : Seq[String])
 
   def close() : Bytes
+
+}
+
+trait ArchiveExtractor {
+
+  def listFilesAndDirectories(f : (Seq[String], Option[Bytes]) => Unit) 
 
 }
 
@@ -48,5 +55,37 @@ final class ZipArchiveCreator() extends ArchiveCreator {
     zipOutputStream.close()
     Bytes(byteArrayOutputStream.toByteArray)
   }
+
+}
+
+final class ZipArchiveExtractor(repo : Repository, bytes : Bytes) extends ArchiveExtractor {
+
+  def listFilesAndDirectories(callback : (Seq[String], Option[Bytes]) => Unit) {
+    val byteArrayInputStream : ByteArrayInputStream = new ByteArrayInputStream(bytes.toArray)
+    val zipInputStream : ZipInputStream = new ZipInputStream(byteArrayInputStream)
+    var zipEntry : ZipEntry = zipInputStream.getNextEntry()
+    var buffer : Array[Byte] = new Array(2048)
+    while (zipEntry != null) {
+      val name = zipEntry.getName()
+      val isDirectory = name.endsWith("/")
+      val path = StringUtils.split_nonempty(name, "/").toList
+      if (isDirectory) {
+        if (repo.isValidDirectoryPath(path))
+          callback(path, None)
+      } else if (repo.checkValidContentPath(path).isDefined) {
+        val outstream = new ByteArrayOutputStream()
+        var len = 0
+        do {
+          len = zipInputStream.read(buffer)
+          if (len > 0) outstream.write(buffer, 0, len)
+        } while (len > 0)
+        outstream.close()
+        val bytes = Bytes(outstream.toByteArray)
+        callback(path, Some(bytes))
+      }
+      zipEntry = zipInputStream.getNextEntry()
+    }
+    zipInputStream.close()
+  } 
 
 }

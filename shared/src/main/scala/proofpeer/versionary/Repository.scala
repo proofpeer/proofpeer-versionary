@@ -52,7 +52,8 @@ trait Directory extends Value {
   * Also knows how to count conflicts in the content, and how to merge content. 
   */
 trait ContentType {
-  def contentTypeId : Int 
+  def contentTypeId : Int
+  def contentTypeSuffix : String 
   def fromBytes(bytes : Bytes) : Any
   def toBytes(content : Any) : Bytes
   def countConflicts(content : Any) : Int
@@ -80,6 +81,29 @@ trait Repository {
   /* -----------------
    *  Derived Methods 
    * ----------------- */
+
+  def isValidDirectoryPath(path : List[String]) : Boolean = {
+    path.forall(n => PathGrammar.isFilename(n) && n.indexOf(".") < 0)
+  }
+
+  def checkValidContentPath(path : List[String]) : Option[ContentType] = {
+    if (path.isEmpty) None
+    else {
+      val (u, v) = path.splitAt(path.length - 1)
+      if (!isValidDirectoryPath(u)) None
+      else {
+        val filename = v.head
+        if (!PathGrammar.isFilename(filename)) None
+        else {
+          val i = filename.indexOf(".")
+          if (i < 0) None 
+          else {
+            ContentTypes.contentTypeOf(filename.substring(i + 1))
+          }
+        }
+      } 
+    }
+  }
 
   def emptyDirectory : Directory = createDirectory(Vector())
 
@@ -249,6 +273,19 @@ trait Repository {
           }
       }
     }
+  }
+
+  def addFile(root : Directory, path : List[String], contentBytes : Bytes) : Option[(List[String], Directory)] = {
+    checkValidContentPath(path) match {
+      case None => None
+      case Some(ct) => 
+        val content = createContent(ct.contentTypeId, ct.fromBytes(contentBytes))
+        set(root, path, content.pointer)  
+    }
+  }
+
+  def addDirectory(root : Directory, path : List[String]) : Option[(List[String], Directory)] = {
+    if (isValidDirectoryPath(path)) mkdir(root, path) else None
   }
 
 }
